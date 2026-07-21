@@ -1,11 +1,22 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazily instantiated — creating this at module load time crashes `next build`
+// during the "Collecting page data" step whenever RESEND_API_KEY isn't set yet
+// (e.g. before you've added environment variables in Vercel). Building the client
+// only when an email actually needs to be sent avoids that entirely.
+let client: Resend | null = null;
+
+function getResendClient() {
+  if (!client) {
+    client = new Resend(process.env.RESEND_API_KEY || "re_placeholder_key_not_set");
+  }
+  return client;
+}
 
 export async function sendGatePassEmail({
   to, buyerName, eventTitle, ticketNumber, pdfBytes,
 }: { to: string; buyerName: string; eventTitle: string; ticketNumber: string; pdfBytes: Uint8Array }) {
-  return resend.emails.send({
+  return getResendClient().emails.send({
     from: process.env.RESEND_FROM_EMAIL || "UniNexus Connect <tickets@uninexusconnect.org>",
     to,
     subject: `Your gate pass — ${eventTitle}`,
@@ -28,7 +39,7 @@ export async function sendCampaignEmail({ to, subject, html }: { to: string[]; s
   for (let i = 0; i < to.length; i += 50) chunks.push(to.slice(i, i + 50));
 
   for (const chunk of chunks) {
-    await resend.emails.send({
+    await getResendClient().emails.send({
       from: process.env.RESEND_FROM_EMAIL || "UniNexus Connect <news@uninexusconnect.org>",
       to: process.env.RESEND_FROM_EMAIL || "news@uninexusconnect.org",
       bcc: chunk,
