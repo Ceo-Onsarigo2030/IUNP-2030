@@ -10,32 +10,44 @@ function useLiveStats() {
   const [stats, setStats] = useState<Stats>({ members: 0, disability: 0, institutions: 0, events: 0 });
 
   useEffect(() => {
-    const supabase = createClient();
+    let channel: ReturnType<ReturnType<typeof createClient>["channel"]> | null = null;
+    let supabaseClient: ReturnType<typeof createClient> | null = null;
 
-    async function load() {
-      const [{ count: members }, { count: disability }, { count: events }] = await Promise.all([
-        supabase.from("profiles").select("id", { count: "exact", head: true }),
-        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("has_disability", true),
-        supabase.from("events").select("id", { count: "exact", head: true }),
-      ]);
-      const { data: institutionRows } = await supabase
-        .from("profiles")
-        .select("institution_name")
-        .eq("category", "institution");
-      const institutions = new Set((institutionRows || []).map((r: any) => r.institution_name)).size;
+    try {
+      const supabase = createClient();
+      supabaseClient = supabase;
 
-      setStats({ members: members || 0, disability: disability || 0, institutions, events: events || 0 });
+      async function load() {
+        try {
+          const [{ count: members }, { count: disability }, { count: events }] = await Promise.all([
+            supabase.from("profiles").select("id", { count: "exact", head: true }),
+            supabase.from("profiles").select("id", { count: "exact", head: true }).eq("has_disability", true),
+            supabase.from("events").select("id", { count: "exact", head: true }),
+          ]);
+          const { data: institutionRows } = await supabase
+            .from("profiles")
+            .select("institution_name")
+            .eq("category", "institution");
+          const institutions = new Set((institutionRows || []).map((r: any) => r.institution_name)).size;
+
+          setStats({ members: members || 0, disability: disability || 0, institutions, events: events || 0 });
+        } catch {
+          // Supabase not reachable yet (e.g. env vars not configured) — leave stats at zero rather than crash.
+        }
+      }
+
+      load();
+
+      channel = supabase
+        .channel("live-stats")
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "profiles" }, load)
+        .subscribe();
+    } catch {
+      // createClient() itself threw (missing Supabase env vars) — stats stay at zero, rest of the page still renders.
     }
 
-    load();
-
-    const channel = supabase
-      .channel("live-stats")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "profiles" }, load)
-      .subscribe();
-
     return () => {
-      supabase.removeChannel(channel);
+      if (supabaseClient && channel) supabaseClient.removeChannel(channel);
     };
   }, []);
 

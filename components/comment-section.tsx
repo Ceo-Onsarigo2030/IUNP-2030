@@ -11,15 +11,21 @@ export function CommentSection({ articleId }: { articleId: string }) {
   const [posting, setPosting] = useState(false);
 
   useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
-    supabase
-      .from("article_comments")
-      .select("*")
-      .eq("article_id", articleId)
-      .eq("is_approved", true)
-      .order("created_at", { ascending: true })
-      .then(({ data }) => setComments(data || []));
+    try {
+      const supabase = createClient();
+      supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null)).catch(() => setUserId(null));
+      supabase
+        .from("article_comments")
+        .select("*")
+        .eq("article_id", articleId)
+        .eq("is_approved", true)
+        .order("created_at", { ascending: true })
+        .then(({ data }) => setComments(data || []))
+        .catch(() => setComments([]));
+    } catch {
+      setUserId(null);
+      setComments([]);
+    }
   }, [articleId]);
 
   async function handlePost(e: React.FormEvent) {
