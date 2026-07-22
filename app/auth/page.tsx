@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -20,6 +20,14 @@ function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
 }
 
 export default function AuthPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[calc(100vh-140px)] surface-ink" />}>
+      <AuthPageContent />
+    </Suspense>
+  );
+}
+
+function AuthPageContent() {
   const [mode, setMode] = useState<Mode>("signup");
   const [step, setStep] = useState<1 | 2>(1);
   const [loading, setLoading] = useState(false);
