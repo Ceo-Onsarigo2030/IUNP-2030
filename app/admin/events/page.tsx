@@ -124,7 +124,10 @@ function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
   useEffect(() => {
     const supabase = createClient();
     supabase.from("tickets").select("*").eq("event_id", event.id).order("created_at", { ascending: false })
-      .then(({ data }) => setTickets(data || []));
+      .then(
+        ({ data }) => setTickets(data || []),
+        () => setTickets([])
+      );
   }, [event.id]);
 
   function toggle(id: string) {

@@ -11,21 +11,38 @@ export function CommentSection({ articleId }: { articleId: string }) {
   const [posting, setPosting] = useState(false);
 
   useEffect(() => {
-    try {
-      const supabase = createClient();
-      supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null)).catch(() => setUserId(null));
-      supabase
-        .from("article_comments")
-        .select("*")
-        .eq("article_id", articleId)
-        .eq("is_approved", true)
-        .order("created_at", { ascending: true })
-        .then(({ data }) => setComments(data || []))
-        .catch(() => setComments([]));
-    } catch {
-      setUserId(null);
-      setComments([]);
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const supabase = createClient();
+
+        try {
+          const { data } = await supabase.auth.getUser();
+          if (!cancelled) setUserId(data.user?.id ?? null);
+        } catch {
+          if (!cancelled) setUserId(null);
+        }
+
+        const { data: commentsData } = await supabase
+          .from("article_comments")
+          .select("*")
+          .eq("article_id", articleId)
+          .eq("is_approved", true)
+          .order("created_at", { ascending: true });
+        if (!cancelled) setComments(commentsData || []);
+      } catch {
+        if (!cancelled) {
+          setUserId(null);
+          setComments([]);
+        }
+      }
     }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, [articleId]);
 
   async function handlePost(e: React.FormEvent) {

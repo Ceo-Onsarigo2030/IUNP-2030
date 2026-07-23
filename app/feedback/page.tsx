@@ -14,20 +14,28 @@ export default function FeedbackPage() {
   const [status, setStatus] = useState<"idle" | "loading" | "done">("idle");
 
   useEffect(() => {
-    try {
-      const supabase = createClient();
-      supabase
-        .from("feedback_entries")
-        .select("*")
-        .eq("kind", tab)
-        .eq("is_approved", true)
-        .order("is_pinned", { ascending: false })
-        .order("created_at", { ascending: false })
-        .then(({ data }) => setEntries(data || []))
-        .catch(() => setEntries([]));
-    } catch {
-      setEntries([]);
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from("feedback_entries")
+          .select("*")
+          .eq("kind", tab)
+          .eq("is_approved", true)
+          .order("is_pinned", { ascending: false })
+          .order("created_at", { ascending: false });
+        if (!cancelled) setEntries(data || []);
+      } catch {
+        if (!cancelled) setEntries([]);
+      }
     }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, [tab]);
 
   async function handleSubmit(e: React.FormEvent) {

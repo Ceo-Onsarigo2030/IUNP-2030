@@ -10,7 +10,10 @@ export default function AdminMembersPage() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.from("profiles").select("*").order("created_at", { ascending: false }).then(({ data }) => setMembers(data || []));
+    supabase.from("profiles").select("*").order("created_at", { ascending: false }).then(
+      ({ data }) => setMembers(data || []),
+      () => setMembers([])
+    );
   }, []);
 
   const filtered = members.filter((m) =>

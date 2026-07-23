@@ -12,7 +12,10 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     const supabase = createClient();
     supabase.from("site_settings").select("value").eq("key", "marquee_text").maybeSingle()
-      .then(({ data }) => setText(data?.value || ""));
+      .then(
+        ({ data }) => setText(data?.value || ""),
+        () => setText("")
+      );
   }, []);
 
   async function handleSave(e: React.FormEvent) {
