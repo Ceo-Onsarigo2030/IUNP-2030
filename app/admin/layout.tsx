@@ -1,11 +1,12 @@
 import Link from "next/link";
 import {
-  LayoutDashboard, CalendarDays, Newspaper, MessageSquare, Mail, BellRing, Users, Settings,
+  LayoutDashboard, CalendarDays, Newspaper, MessageSquare, Mail, BellRing, Users, Settings, Trophy,
 } from "lucide-react";
 
 const LINKS = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/events", label: "Events & Ticketing", icon: CalendarDays },
+  { href: "/admin/gala", label: "Gala Awards", icon: Trophy },
   { href: "/admin/articles", label: "Articles & Announcements", icon: Newspaper },
   { href: "/admin/feedback", label: "Feedback Wall", icon: MessageSquare },
   { href: "/admin/newsletter", label: "Newsletter", icon: Mail },

@@ -3,18 +3,23 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Menu, X, CalendarDays, LogOut, LayoutDashboard, ShieldCheck } from "lucide-react";
 import { NAV } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-
-// Swap this stub for real Supabase auth state (useAuth hook) once wired.
-function useSessionStub() {
-  return { user: null as null | { id: string }, isAdmin: false };
-}
+import { useAuth } from "@/lib/use-auth";
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
-  const { user, isAdmin } = useSessionStub();
+  const { user, isAdmin, signOut } = useAuth();
+  const router = useRouter();
+
+  async function handleSignOut() {
+    await signOut();
+    setOpen(false);
+    router.push("/");
+    router.refresh();
+  }
 
   return (
     <header className="sticky top-0 z-50 surface-ink border-b border-gold/15">
@@ -58,6 +63,9 @@ export function SiteHeader() {
                   <ShieldCheck className="size-4" /> Admin
                 </Link>
               )}
+              <button onClick={handleSignOut} className="btn-ghost-cream !px-3">
+                <LogOut className="size-4" /> Log out
+              </button>
             </>
           ) : (
             <Link href="/auth" className="btn-gold !py-2.5">

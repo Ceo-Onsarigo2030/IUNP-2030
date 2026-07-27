@@ -21,6 +21,15 @@ export const stkPushLimiter = makeLimiter(5, "10 m");
 export const publicFormLimiter = makeLimiter(10, "10 m");
 // Push subscription registration.
 export const pushSubscribeLimiter = makeLimiter(20, "1 h");
+// Gala Awards voting — generous per-device (device+DB constraint is the real guard),
+// tighter per-IP to blunt scripted mass-voting from one connection.
+export const voteDeviceLimiter = makeLimiter(20, "1 h");
+export const voteIpLimiter = makeLimiter(60, "1 h");
+// OTP request — tight, since each one costs real SMS money and could be used to spam a phone.
+export const otpRequestPhoneLimiter = makeLimiter(3, "15 m");
+export const otpRequestIpLimiter = makeLimiter(10, "15 m");
+// OTP verify — a few genuine mistypes allowed, but not enough for brute-forcing a 6-digit code.
+export const otpVerifyLimiter = makeLimiter(8, "15 m");
 
 export function clientIp(request: Request) {
   const fwd = request.headers.get("x-forwarded-for");
