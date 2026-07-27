@@ -174,7 +174,7 @@ function AuthPageContent() {
                     <label
                       key={c.value}
                       className={cn(
-                        "flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors",
+                        "flex items-start gap-3 rounded-lg border bg-white p-3 cursor-pointer transition-colors",
                         signupForm.category === c.value ? "border-gold bg-gold/5" : "border-black/10 hover:border-black/20"
                       )}
                     >
@@ -186,7 +186,7 @@ function AuthPageContent() {
                         onChange={() => setSignupForm((f) => ({ ...f, category: c.value }))}
                       />
                       <span>
-                        <span className="block text-sm font-medium">{c.label}</span>
+                        <span className="block text-sm font-medium text-ink">{c.label}</span>
                         <span className="block text-xs text-ink/45">{c.hint}</span>
                       </span>
                     </label>
@@ -215,7 +215,7 @@ function AuthPageContent() {
               </button>
 
               <Divider />
-              <button type="button" onClick={handleGoogle} className="w-full flex items-center justify-center gap-2.5 rounded-full border border-black/10 py-3 text-sm font-medium hover:bg-black/[0.03] transition-colors">
+              <button type="button" onClick={handleGoogle} className="w-full flex items-center justify-center gap-2.5 rounded-full border border-black/10 bg-white text-ink py-3 text-sm font-medium hover:bg-black/[0.03] transition-colors">
                 <GoogleIcon className="size-4" /> Continue with Google
               </button>
               <p className="text-[11px] text-ink/40 text-center leading-relaxed">
@@ -238,7 +238,7 @@ function AuthPageContent() {
                 {loading ? <Loader2 className="size-4 animate-spin" /> : "Log in"}
               </button>
               <Divider />
-              <button type="button" onClick={handleGoogle} className="w-full flex items-center justify-center gap-2.5 rounded-full border border-black/10 py-3 text-sm font-medium hover:bg-black/[0.03] transition-colors">
+              <button type="button" onClick={handleGoogle} className="w-full flex items-center justify-center gap-2.5 rounded-full border border-black/10 bg-white text-ink py-3 text-sm font-medium hover:bg-black/[0.03] transition-colors">
                 <GoogleIcon className="size-4" /> Continue with Google
               </button>
               <p className="text-[11px] text-ink/40 text-center">

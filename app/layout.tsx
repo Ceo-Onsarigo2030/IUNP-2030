@@ -20,6 +20,7 @@ const sans = Inter({
 });
 
 export const metadata: Metadata = {
+  colorScheme: "light",
   title: {
     default: "UniNexus Connect | Bridging Campus. Building Futures.",
     template: "%s | UniNexus Connect",
