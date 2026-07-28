@@ -90,9 +90,23 @@ function AuthPageContent() {
     setLoading(true);
     try {
       const supabase = createClient();
-      const { error: loginErr } = await supabase.auth.signInWithPassword(loginForm);
+      const { data, error: loginErr } = await supabase.auth.signInWithPassword(loginForm);
       if (loginErr) throw loginErr;
-      router.push(searchParams.get("redirect") || "/dashboard");
+
+      const explicitRedirect = searchParams.get("redirect");
+      if (explicitRedirect) {
+        router.push(explicitRedirect);
+      } else if (data.user) {
+        const { data: role } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.user.id)
+          .eq("role", "admin")
+          .maybeSingle();
+        router.push(role ? "/admin" : "/dashboard");
+      } else {
+        router.push("/dashboard");
+      }
       router.refresh();
     } catch (err: any) {
       setError(mapAuthError(err.message));
