@@ -33,6 +33,22 @@ export async function sendGatePassEmail({
   });
 }
 
+export async function sendNewsletterWelcomeEmail({ to }: { to: string }) {
+  return getResendClient().emails.send({
+    from: process.env.RESEND_FROM_EMAIL || "UniNexus Connect <news@uninexusconnect.org>",
+    to,
+    subject: "You're subscribed — UniNexus Connect",
+    html: `
+      <div style="font-family: Georgia, serif; background:#0A0A0B; color:#FAF7EF; padding:32px; border-radius:12px;">
+        <p style="color:#C9A227; letter-spacing:2px; font-size:12px; text-transform:uppercase;">UniNexus Connect</p>
+        <h1 style="font-size:22px; margin:8px 0 16px;">You're on the list</h1>
+        <p>Thanks for subscribing. You'll hear from us whenever there's real news, events or opportunities worth your time — no spam, no noise.</p>
+        <p style="color:#9a9890; font-size:12px; margin-top:24px;">Bridging Campus. Building Futures.</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendCampaignEmail({ to, subject, html }: { to: string[]; subject: string; html: string }) {
   // Resend batches recipients internally when BCC'd this way; for large lists, chunk into batches of ~50.
   const chunks: string[][] = [];

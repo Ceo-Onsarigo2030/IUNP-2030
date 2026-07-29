@@ -1,15 +1,25 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { CommentSection } from "@/components/comment-section";
+import { ArticleMediaGallery } from "@/components/article-media-gallery";
+import { ArticleLikeButton } from "@/components/article-like-button";
 
 async function getArticle(slug: string) {
   const supabase = createClient();
-  const { data } = await supabase.from("articles").select("*").eq("slug", slug).maybeSingle();
-  return data;
+  const { data: article } = await supabase.from("articles").select("*").eq("slug", slug).maybeSingle();
+  if (!article) return { article: null, media: [] };
+
+  const { data: media } = await supabase
+    .from("article_media")
+    .select("*")
+    .eq("article_id", article.id)
+    .order("sort_order", { ascending: true });
+
+  return { article, media: media || [] };
 }
 
 export default async function ArticleDetailPage({ params }: { params: { slug: string } }) {
-  const article = await getArticle(params.slug);
+  const { article, media } = await getArticle(params.slug);
   if (!article) notFound();
 
   return (
@@ -25,9 +35,15 @@ export default async function ArticleDetailPage({ params }: { params: { slug: st
       </section>
 
       <article className="container py-14 sm:py-20 max-w-3xl">
+        <div className="mb-8">
+          <ArticleLikeButton articleId={article.id} initialLikeCount={article.like_count || 0} />
+        </div>
+
         <div className="prose-content text-ink/75 leading-relaxed text-[15px] sm:text-base space-y-5 whitespace-pre-line">
           {article.body}
         </div>
+
+        <ArticleMediaGallery media={media} />
 
         <div className="mt-16 border-t border-black/10 pt-10">
           {article.comments_enabled ? (

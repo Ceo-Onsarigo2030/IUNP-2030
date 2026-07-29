@@ -202,6 +202,10 @@ function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [resending, setResending] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  // Default view is successful payments only — that's what admins need day to day
+  // (who paid, their gate pass number, whether they've received it). Failed/pending
+  // attempts are one tab away, not mixed into the main table.
+  const [view, setView] = useState<"successful" | "all">("successful");
 
   useEffect(() => {
     const supabase = createClient();
@@ -211,6 +215,9 @@ function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
         () => setTickets([])
       );
   }, [event.id]);
+
+  const visibleTickets = view === "successful" ? tickets.filter((t) => t.status === "paid") : tickets;
+  const paidCount = tickets.filter((t) => t.status === "paid").length;
 
   function toggle(id: string) {
     setSelected((s) => {
@@ -227,15 +234,25 @@ function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
 
   function exportCsv() {
     const rows = [
-      ["ticket_number", "buyer_name", "buyer_email", "buyer_phone", "amount", "status", "mpesa_receipt", "created_at"],
-      ...tickets.map((t) => [t.ticket_number || "", t.buyer_name, t.buyer_email, t.buyer_phone, t.amount, t.status, t.mpesa_receipt || "", t.created_at]),
+      ["gate_pass_number", "buyer_name", "buyer_email", "buyer_phone", "amount", "status", "mpesa_receipt", "gate_pass_received", "created_at"],
+      ...visibleTickets.map((t) => [
+        t.ticket_number || "",
+        t.buyer_name,
+        t.buyer_email,
+        t.buyer_phone,
+        t.amount,
+        t.status,
+        t.mpesa_receipt || "",
+        t.gate_pass_sent_at ? "Yes" : "No",
+        t.created_at,
+      ]),
     ];
     const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${event.slug}-tickets.csv`;
+    a.download = `${event.slug}-${view === "successful" ? "successful-payments" : "all-tickets"}.csv`;
     a.click();
   }
 
@@ -255,16 +272,24 @@ function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
-      <div className="bg-cream rounded-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+      <div className="bg-cream rounded-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-5 border-b border-black/5">
           <div>
-            <h2 className="font-display text-xl">{event.title} — Tickets</h2>
-            <p className="text-xs text-ink/50">{tickets.length} total · {tickets.filter((t) => t.status === "paid").length} paid</p>
+            <h2 className="font-display text-xl">{event.title} — Tickets sold</h2>
+            <p className="text-xs text-ink/50">{tickets.length} total attempts · {paidCount} successful payments</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-black/5 rounded-full"><X className="size-4" /></button>
         </div>
 
-        <div className="flex items-center gap-2 p-4 border-b border-black/5">
+        <div className="flex items-center gap-2 p-4 border-b border-black/5 flex-wrap">
+          <div className="inline-flex rounded-full border border-black/10 p-1">
+            <button onClick={() => setView("successful")} className={`text-xs px-3 py-1.5 rounded-full ${view === "successful" ? "bg-gold-foil text-ink shadow-gold" : "text-ink/50"}`}>
+              Successful payments ({paidCount})
+            </button>
+            <button onClick={() => setView("all")} className={`text-xs px-3 py-1.5 rounded-full ${view === "all" ? "bg-gold-foil text-ink shadow-gold" : "text-ink/50"}`}>
+              All attempts ({tickets.length})
+            </button>
+          </div>
           <button onClick={toggleAll} className="text-xs px-3 py-1.5 rounded-full border border-black/10 hover:bg-black/5">
             {selected.size > 0 ? "Deselect all" : "Select all paid"}
           </button>
@@ -283,14 +308,17 @@ function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
             <thead className="text-left text-xs uppercase tracking-wider text-ink/45 border-b border-black/5 sticky top-0 bg-cream">
               <tr>
                 <th className="px-4 py-2 w-8"></th>
-                <th className="px-4 py-2">Ticket #</th>
+                <th className="px-4 py-2">Gate pass #</th>
                 <th className="px-4 py-2">Buyer</th>
                 <th className="px-4 py-2">Phone</th>
-                <th className="px-4 py-2">Status</th>
+                <th className="px-4 py-2">Amount</th>
+                <th className="px-4 py-2">M-Pesa receipt</th>
+                <th className="px-4 py-2">Gate pass received</th>
+                {view === "all" && <th className="px-4 py-2">Status</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
-              {tickets.map((t) => (
+              {visibleTickets.map((t) => (
                 <tr key={t.id}>
                   <td className="px-4 py-2">
                     {t.status === "paid" && (
@@ -300,15 +328,30 @@ function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
                   <td className="px-4 py-2 font-mono text-xs">{t.ticket_number || "—"}</td>
                   <td className="px-4 py-2">{t.buyer_name}<br /><span className="text-xs text-ink/45">{t.buyer_email}</span></td>
                   <td className="px-4 py-2 text-xs">{t.buyer_phone}</td>
+                  <td className="px-4 py-2 text-xs">KES {Number(t.amount).toLocaleString()}</td>
+                  <td className="px-4 py-2 font-mono text-xs">{t.mpesa_receipt || "—"}</td>
                   <td className="px-4 py-2">
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      t.status === "paid" ? "bg-emerald-50 text-emerald-700" : t.status === "failed" ? "bg-red-50 text-red-600" : "bg-black/5 text-ink/50"
-                    }`}>{t.status}</span>
+                    {t.status === "paid" ? (
+                      <span className={`text-xs px-2 py-1 rounded-full ${t.gate_pass_sent_at ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                        {t.gate_pass_sent_at ? `Received ${new Date(t.gate_pass_sent_at).toLocaleDateString()}` : "Not yet sent"}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-ink/30">—</span>
+                    )}
                   </td>
+                  {view === "all" && (
+                    <td className="px-4 py-2">
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        t.status === "paid" ? "bg-emerald-50 text-emerald-700" : t.status === "failed" ? "bg-red-50 text-red-600" : "bg-black/5 text-ink/50"
+                      }`}>{t.status}</span>
+                    </td>
+                  )}
                 </tr>
               ))}
-              {tickets.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-ink/40">No tickets sold yet.</td></tr>
+              {visibleTickets.length === 0 && (
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-ink/40">
+                  {view === "successful" ? "No successful payments yet." : "No tickets sold yet."}
+                </td></tr>
               )}
             </tbody>
           </table>

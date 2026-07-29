@@ -55,6 +55,15 @@ function AuthPageContent() {
       return;
     }
 
+    // Whichever category is chosen, the specific name below it is mandatory —
+    // this used to only be enforced for "institution", so affiliation/organization
+    // and "other" sign-ups could proceed with that field left blank.
+    if (!signupForm.institutionName.trim()) {
+      const selected = MEMBER_CATEGORIES.find((c) => c.value === signupForm.category);
+      setError(`Please fill in "${selected?.fieldLabel ?? "the specific name"}" to continue.`);
+      return;
+    }
+
     setLoading(true);
     try {
       const supabase = createClient();
@@ -197,7 +206,7 @@ function AuthPageContent() {
                         name="category"
                         className="mt-1 accent-[#C9A227]"
                         checked={signupForm.category === c.value}
-                        onChange={() => setSignupForm((f) => ({ ...f, category: c.value }))}
+                        onChange={() => setSignupForm((f) => ({ ...f, category: c.value, institutionName: "" }))}
                       />
                       <span>
                         <span className="block text-sm font-medium text-ink">{c.label}</span>
@@ -208,10 +217,23 @@ function AuthPageContent() {
                 </div>
               </div>
 
-              {signupForm.category === "institution" && (
-                <Field icon={Building2} placeholder="Institution name" value={signupForm.institutionName}
-                  onChange={(v) => setSignupForm((f) => ({ ...f, institutionName: v }))} required />
-              )}
+              {signupForm.category && (() => {
+                const selected = MEMBER_CATEGORIES.find((c) => c.value === signupForm.category)!;
+                return (
+                  <div>
+                    <p className="text-xs font-semibold text-ink/60 mb-2">
+                      {selected.fieldLabel} <span className="text-red-500">*</span>
+                    </p>
+                    <Field
+                      icon={Building2}
+                      placeholder={selected.fieldPlaceholder}
+                      value={signupForm.institutionName}
+                      onChange={(v) => setSignupForm((f) => ({ ...f, institutionName: v }))}
+                      required
+                    />
+                  </div>
+                );
+              })()}
 
               <label className="flex items-center gap-2.5 text-sm text-ink/70 cursor-pointer">
                 <input
