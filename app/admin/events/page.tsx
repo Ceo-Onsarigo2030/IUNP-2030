@@ -6,7 +6,7 @@ import { Loader2, Plus, Star, Ticket as TicketIcon, Trash2, Download, Send, X } 
 
 const EMPTY = {
   title: "", slug: "", description: "", venue: "", starts_at: "", status: "upcoming",
-  ticket_price: "", ticket_currency: "KES", capacity: "",
+  ticket_price: "", ticket_currency: "KES", capacity: "", map_url: "",
 };
 
 export default function AdminEventsPage() {
@@ -15,6 +15,7 @@ export default function AdminEventsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [ticketsEvent, setTicketsEvent] = useState<any | null>(null);
+  const [tiersEvent, setTiersEvent] = useState<any | null>(null);
 
   async function load() {
     const supabase = createClient();
@@ -70,6 +71,7 @@ export default function AdminEventsPage() {
           <input required placeholder="Title" value={form.title} onChange={(e) => setForm((f: any) => ({ ...f, title: e.target.value }))} className="w-full rounded-lg border border-black/10 px-3 py-2.5 text-sm" />
           <textarea required rows={3} placeholder="Description" value={form.description} onChange={(e) => setForm((f: any) => ({ ...f, description: e.target.value }))} className="w-full rounded-lg border border-black/10 px-3 py-2.5 text-sm resize-none" />
           <input required placeholder="Venue" value={form.venue} onChange={(e) => setForm((f: any) => ({ ...f, venue: e.target.value }))} className="w-full rounded-lg border border-black/10 px-3 py-2.5 text-sm" />
+          <input placeholder="Google Maps link (paste from Share > Copy link)" value={form.map_url} onChange={(e) => setForm((f: any) => ({ ...f, map_url: e.target.value }))} className="w-full rounded-lg border border-black/10 px-3 py-2.5 text-sm" />
           <input required type="datetime-local" value={form.starts_at} onChange={(e) => setForm((f: any) => ({ ...f, starts_at: e.target.value }))} className="w-full rounded-lg border border-black/10 px-3 py-2.5 text-sm" />
           <div className="grid grid-cols-2 gap-3">
             <input placeholder="Ticket price (KES)" type="number" value={form.ticket_price} onChange={(e) => setForm((f: any) => ({ ...f, ticket_price: e.target.value }))} className="w-full rounded-lg border border-black/10 px-3 py-2.5 text-sm" />
@@ -101,6 +103,9 @@ export default function AdminEventsPage() {
                 <button onClick={() => setTicketsEvent(e)} className="text-xs px-3 py-1.5 rounded-full border border-gold/30 text-gold-deep hover:bg-gold/10 flex items-center gap-1">
                   <TicketIcon className="size-3" /> Tickets
                 </button>
+                <button onClick={() => setTiersEvent(e)} className="text-xs px-3 py-1.5 rounded-full border border-gold/30 text-gold-deep hover:bg-gold/10">
+                  Ticket Tiers
+                </button>
                 <button onClick={() => setPinnedCurrent(e.id)} className="text-xs px-3 py-1.5 rounded-full border border-gold/30 text-gold-deep hover:bg-gold/10">Pin current</button>
                 <button onClick={() => { setForm({ ...e, ticket_price: e.ticket_price || "", capacity: e.capacity || "" }); setEditingId(e.id); }} className="text-xs px-3 py-1.5 rounded-full border border-black/10 hover:bg-black/5">Edit</button>
                 <button onClick={() => remove(e.id)} className="text-xs px-3 py-1.5 rounded-full border border-red-200 text-red-600 hover:bg-red-50 flex items-center gap-1"><Trash2 className="size-3" /> Delete</button>
@@ -111,6 +116,83 @@ export default function AdminEventsPage() {
       </div>
 
       {ticketsEvent && <TicketsPanel event={ticketsEvent} onClose={() => setTicketsEvent(null)} />}
+      {tiersEvent && <TiersPanel event={tiersEvent} onClose={() => setTiersEvent(null)} />}
+    </div>
+  );
+}
+
+function TiersPanel({ event, onClose }: { event: any; onClose: () => void }) {
+  const [tiers, setTiers] = useState<any[]>([]);
+  const [form, setForm] = useState({ name: "", price: "", description: "" });
+  const [saving, setSaving] = useState(false);
+
+  async function load() {
+    const supabase = createClient();
+    const { data } = await supabase.from("event_ticket_tiers").select("*").eq("event_id", event.id).order("sort_order", { ascending: true });
+    setTiers(data || []);
+  }
+  useEffect(() => { load(); }, [event.id]);
+
+  async function addTier(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    const supabase = createClient();
+    await supabase.from("event_ticket_tiers").insert({
+      event_id: event.id,
+      name: form.name,
+      price: Number(form.price),
+      description: form.description || null,
+      sort_order: tiers.length,
+    });
+    setForm({ name: "", price: "", description: "" });
+    setSaving(false);
+    load();
+  }
+
+  async function removeTier(id: string) {
+    if (!confirm("Remove this ticket tier?")) return;
+    const supabase = createClient();
+    await supabase.from("event_ticket_tiers").delete().eq("id", id);
+    load();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
+      <div className="bg-cream rounded-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b border-black/5">
+          <h2 className="font-display text-xl">{event.title} — Ticket Tiers</h2>
+          <button onClick={onClose} className="p-2 hover:bg-black/5 rounded-full"><X className="size-4" /></button>
+        </div>
+        <div className="overflow-y-auto flex-1 p-5 space-y-5">
+          <form onSubmit={addTier} className="card-elegant p-4 space-y-2">
+            <input required placeholder="Tier name e.g. Regular, VIP, VVIP" value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              className="w-full rounded-lg border border-black/10 px-3 py-2 text-sm" />
+            <input required type="number" placeholder="Price (KES)" value={form.price}
+              onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+              className="w-full rounded-lg border border-black/10 px-3 py-2 text-sm" />
+            <input placeholder="What's included (optional)" value={form.description}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              className="w-full rounded-lg border border-black/10 px-3 py-2 text-sm" />
+            <button type="submit" disabled={saving} className="btn-gold w-full !py-2.5 disabled:opacity-60">
+              {saving ? <Loader2 className="size-4 animate-spin" /> : <><Plus className="size-4" /> Add tier</>}
+            </button>
+          </form>
+
+          <div className="space-y-2">
+            {tiers.map((t) => (
+              <div key={t.id} className="rounded-lg bg-white border border-black/5 p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold">{t.name} — KES {Number(t.price).toLocaleString()}</p>
+                  {t.description && <p className="text-xs text-ink/50">{t.description}</p>}
+                </div>
+                <button onClick={() => removeTier(t.id)} className="text-red-500 hover:text-red-700"><Trash2 className="size-3.5" /></button>
+              </div>
+            ))}
+            {tiers.length === 0 && <p className="text-sm text-ink/40 text-center">No tiers yet — add Regular, VIP, VVIP above.</p>}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

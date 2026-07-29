@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MapPin, CalendarDays, ArrowRight } from "lucide-react";
+import { MapPin, CalendarDays, ArrowRight, Navigation } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { formatEventDate } from "@/lib/utils";
 import { TicketWidget } from "@/components/ticket-widget";
@@ -13,14 +13,25 @@ async function getEvents() {
       .from("events")
       .select("id", { count: "exact", head: true })
       .eq("status", "upcoming");
-    return { current, upcomingCount: upcomingCount || 0 };
+
+    let tiers: any[] = [];
+    if (current) {
+      const { data } = await supabase
+        .from("event_ticket_tiers")
+        .select("*")
+        .eq("event_id", current.id)
+        .order("sort_order", { ascending: true });
+      tiers = data || [];
+    }
+
+    return { current, upcomingCount: upcomingCount || 0, tiers };
   } catch {
-    return { current: null, upcomingCount: 0 };
+    return { current: null, upcomingCount: 0, tiers: [] };
   }
 }
 
 export async function EventsSection() {
-  const { current, upcomingCount } = await getEvents();
+  const { current, upcomingCount, tiers } = await getEvents();
 
   return (
     <section className="bg-cream-dim py-16 sm:py-24">
@@ -46,13 +57,18 @@ export async function EventsSection() {
                 <span className="eyebrow !text-gold-deep">Current event · Pinned</span>
                 <h3 className="heading-display text-2xl sm:text-3xl mt-3 mb-4">{current.title}</h3>
                 <p className="text-ink/65 leading-relaxed mb-5 line-clamp-4">{current.description}</p>
-                <div className="flex flex-wrap gap-5 text-sm text-ink/60">
+                <div className="flex flex-wrap gap-5 text-sm text-ink/60 mb-5">
                   <span className="flex items-center gap-2"><CalendarDays className="size-4 text-gold-deep" /> {formatEventDate(current.starts_at)}</span>
                   <span className="flex items-center gap-2"><MapPin className="size-4 text-gold-deep" /> {current.venue}</span>
                 </div>
+                {current.map_url && (
+                  <a href={current.map_url} target="_blank" rel="noreferrer" className="btn-outline-gold !text-ink !border-ink/20 hover:!bg-ink hover:!text-cream !py-2.5 !px-5 text-sm inline-flex">
+                    <Navigation className="size-3.5" /> Get directions
+                  </a>
+                )}
               </div>
             </div>
-            <TicketWidget eventId={current.id} price={current.ticket_price || 0} currency={current.ticket_currency || "KES"} />
+            <TicketWidget eventId={current.id} tiers={tiers} />
           </div>
         ) : (
           <div className="card-elegant p-10 text-center text-ink/50 reveal">

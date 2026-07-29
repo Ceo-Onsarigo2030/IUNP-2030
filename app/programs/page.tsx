@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { MapPin, CalendarDays } from "lucide-react";
+import { MapPin, CalendarDays, Navigation } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { formatEventDate } from "@/lib/utils";
 import { TicketWidget } from "@/components/ticket-widget";
@@ -15,14 +15,25 @@ async function getEvents() {
       .select("*")
       .eq("status", "upcoming")
       .order("starts_at", { ascending: true });
-    return { current, upcoming: upcoming || [] };
+
+    let tiers: any[] = [];
+    if (current) {
+      const { data } = await supabase
+        .from("event_ticket_tiers")
+        .select("*")
+        .eq("event_id", current.id)
+        .order("sort_order", { ascending: true });
+      tiers = data || [];
+    }
+
+    return { current, upcoming: upcoming || [], tiers };
   } catch {
-    return { current: null, upcoming: [] };
+    return { current: null, upcoming: [], tiers: [] };
   }
 }
 
 export default async function ProgramsPage() {
-  const { current, upcoming } = await getEvents();
+  const { current, upcoming, tiers } = await getEvents();
 
   return (
     <div className="bg-cream">
@@ -45,13 +56,18 @@ export default async function ProgramsPage() {
               <div className="p-7 sm:p-9">
                 <h2 className="heading-display text-3xl mb-4">{current.title}</h2>
                 <p className="text-ink/65 leading-relaxed mb-5">{current.description}</p>
-                <div className="flex flex-wrap gap-5 text-sm text-ink/60">
+                <div className="flex flex-wrap gap-5 text-sm text-ink/60 mb-5">
                   <span className="flex items-center gap-2"><CalendarDays className="size-4 text-gold-deep" /> {formatEventDate(current.starts_at)}</span>
                   <span className="flex items-center gap-2"><MapPin className="size-4 text-gold-deep" /> {current.venue}</span>
                 </div>
+                {current.map_url && (
+                  <a href={current.map_url} target="_blank" rel="noreferrer" className="btn-outline-gold !text-ink !border-ink/20 hover:!bg-ink hover:!text-cream !py-2.5 !px-5 text-sm inline-flex">
+                    <Navigation className="size-3.5" /> Get directions
+                  </a>
+                )}
               </div>
             </div>
-            <TicketWidget eventId={current.id} price={current.ticket_price || 0} currency={current.ticket_currency || "KES"} />
+            <TicketWidget eventId={current.id} tiers={tiers} />
           </div>
         ) : (
           <div className="card-elegant p-10 text-center text-ink/50 mb-20">No current event pinned right now.</div>
@@ -64,10 +80,15 @@ export default async function ProgramsPage() {
               <div key={e.id} className="card-elegant p-6">
                 <h3 className="font-display text-xl mb-2">{e.title}</h3>
                 <p className="text-sm text-ink/60 leading-relaxed mb-4 line-clamp-3">{e.description}</p>
-                <div className="flex flex-col gap-1.5 text-xs text-ink/50">
+                <div className="flex flex-col gap-1.5 text-xs text-ink/50 mb-3">
                   <span className="flex items-center gap-2"><CalendarDays className="size-3.5 text-gold-deep" /> {formatEventDate(e.starts_at)}</span>
                   <span className="flex items-center gap-2"><MapPin className="size-3.5 text-gold-deep" /> {e.venue}</span>
                 </div>
+                {e.map_url && (
+                  <a href={e.map_url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-gold-deep flex items-center gap-1">
+                    <Navigation className="size-3" /> Get directions
+                  </a>
+                )}
               </div>
             ))}
           </div>

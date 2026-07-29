@@ -8,6 +8,7 @@ import * as Sentry from "@sentry/nextjs";
 
 const schema = z.object({
   eventId: z.string().uuid(),
+  tierId: z.string().uuid(),
   name: z.string().min(2).max(100),
   email: z.string().email(),
   phone: z.string().min(9),
@@ -31,7 +32,14 @@ export async function POST(request: Request) {
 
     const { data: event, error: eventErr } = await supabase.from("events").select("*").eq("id", body.eventId).maybeSingle();
     if (eventErr || !event) return NextResponse.json({ error: "Event not found." }, { status: 404 });
-    if (!event.ticket_price) return NextResponse.json({ error: "This event has no ticketing configured." }, { status: 400 });
+
+    const { data: tier, error: tierErr } = await supabase
+      .from("event_ticket_tiers")
+      .select("*")
+      .eq("id", body.tierId)
+      .eq("event_id", body.eventId)
+      .maybeSingle();
+    if (tierErr || !tier) return NextResponse.json({ error: "That ticket tier isn't available for this event." }, { status: 400 });
 
     if (!/^254(7|1)\d{8}$/.test(phone)) {
       return NextResponse.json({ error: "Enter a valid Safaricom number, e.g. 0712345678." }, { status: 400 });
@@ -39,17 +47,18 @@ export async function POST(request: Request) {
 
     const { checkoutRequestId, merchantRequestId } = await initiateStkPush({
       phone,
-      amount: Number(event.ticket_price),
+      amount: Number(tier.price),
       accountRef: event.slug,
-      description: event.title,
+      description: `${event.title} - ${tier.name}`,
     });
 
     const { error: insertErr } = await supabase.from("tickets").insert({
       event_id: event.id,
+      tier_id: tier.id,
       buyer_name: body.name,
       buyer_email: body.email,
       buyer_phone: phone,
-      amount: event.ticket_price,
+      amount: tier.price,
       status: "pending",
       checkout_request_id: checkoutRequestId,
       merchant_request_id: merchantRequestId,

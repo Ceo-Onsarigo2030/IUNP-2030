@@ -1,17 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Smartphone, CheckCircle2, XCircle, Ticket } from "lucide-react";
+import { Loader2, Smartphone, CheckCircle2, XCircle, Ticket, ChevronLeft } from "lucide-react";
 
-type Phase = "form" | "prompting" | "success" | "failed";
+type Tier = { id: string; name: string; price: number; currency: string; description: string | null };
+type Phase = "tier" | "form" | "prompting" | "success" | "failed";
 
-export function TicketWidget({ eventId, price, currency = "KES" }: { eventId: string; price: number; currency?: string }) {
-  const [phase, setPhase] = useState<Phase>("form");
+export function TicketWidget({ eventId, tiers }: { eventId: string; tiers: Tier[] }) {
+  const [phase, setPhase] = useState<Phase>(tiers.length > 1 ? "tier" : "form");
+  const [tier, setTier] = useState<Tier | null>(tiers.length === 1 ? tiers[0] : null);
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [error, setError] = useState<string | null>(null);
 
+  function chooseTier(t: Tier) {
+    setTier(t);
+    setPhase("form");
+    setError(null);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!tier) return;
     setError(null);
     setPhase("prompting");
 
@@ -19,12 +28,11 @@ export function TicketWidget({ eventId, price, currency = "KES" }: { eventId: st
       const res = await fetch("/api/daraja/stk-push", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId, ...form }),
+        body: JSON.stringify({ eventId, tierId: tier.id, ...form }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not start payment prompt.");
 
-      // Poll for status — the callback endpoint updates ticket status server-side.
       const checkoutRequestId = data.checkoutRequestId;
       const started = Date.now();
       const poll = async (): Promise<void> => {
@@ -48,13 +56,47 @@ export function TicketWidget({ eventId, price, currency = "KES" }: { eventId: st
     }
   }
 
+  if (tiers.length === 0) {
+    return (
+      <div className="card-elegant p-8 text-center text-ink/50">
+        Ticketing isn&apos;t set up for this event yet.
+      </div>
+    );
+  }
+
+  if (phase === "tier") {
+    return (
+      <div className="card-elegant p-6 sm:p-8">
+        <div className="flex items-center gap-2 mb-5 text-gold">
+          <Ticket className="size-5" />
+          <span className="text-xs font-semibold uppercase tracking-wider">Choose your ticket</span>
+        </div>
+        <div className="space-y-3">
+          {tiers.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => chooseTier(t)}
+              className="w-full text-left rounded-lg border border-black/10 p-4 hover:border-gold transition-colors flex items-center justify-between gap-3"
+            >
+              <div>
+                <p className="font-display text-lg">{t.name}</p>
+                {t.description && <p className="text-xs text-ink/50 mt-0.5">{t.description}</p>}
+              </div>
+              <p className="font-display text-lg text-gold-deep shrink-0">{t.currency} {Number(t.price).toLocaleString()}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (phase === "success") {
     return (
       <div className="card-elegant p-8 text-center">
         <CheckCircle2 className="size-12 text-gold mx-auto mb-4" />
         <h3 className="heading-display text-2xl mb-2">Payment received</h3>
         <p className="text-ink/65 text-sm">
-          Your gate pass with QR code is on its way to <strong>{form.email}</strong>. Check your inbox (and spam folder) in the next minute.
+          Your {tier?.name} gate pass with QR code is on its way to <strong>{form.email}</strong>. Check your inbox (and spam folder) in the next minute.
         </p>
       </div>
     );
@@ -66,7 +108,7 @@ export function TicketWidget({ eventId, price, currency = "KES" }: { eventId: st
         <Loader2 className="size-10 text-gold mx-auto mb-4 animate-spin" />
         <h3 className="heading-display text-2xl mb-2">Check your phone</h3>
         <p className="text-ink/65 text-sm">
-          We&apos;ve sent an M-Pesa prompt to <strong>{form.phone}</strong>. Enter your PIN to complete the {currency} {price.toLocaleString()} payment.
+          We&apos;ve sent an M-Pesa prompt to <strong>{form.phone}</strong>. Enter your PIN to complete the {tier?.currency} {tier?.price.toLocaleString()} payment.
         </p>
       </div>
     );
@@ -74,11 +116,16 @@ export function TicketWidget({ eventId, price, currency = "KES" }: { eventId: st
 
   return (
     <div className="card-elegant p-6 sm:p-8">
+      {tiers.length > 1 && (
+        <button onClick={() => setPhase("tier")} className="flex items-center gap-1 text-xs text-ink/45 hover:text-gold-deep mb-4">
+          <ChevronLeft className="size-3.5" /> Change ticket
+        </button>
+      )}
       <div className="flex items-center gap-2 mb-1 text-gold">
         <Ticket className="size-5" />
-        <span className="text-xs font-semibold uppercase tracking-wider">Buy your ticket</span>
+        <span className="text-xs font-semibold uppercase tracking-wider">{tier?.name} ticket</span>
       </div>
-      <p className="font-display text-2xl mb-5">{currency} {price.toLocaleString()} per ticket</p>
+      <p className="font-display text-2xl mb-5">{tier?.currency} {tier?.price.toLocaleString()}</p>
 
       {phase === "failed" && error && (
         <div className="mb-4 flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
@@ -113,7 +160,7 @@ export function TicketWidget({ eventId, price, currency = "KES" }: { eventId: st
           />
         </div>
         <button type="submit" className="btn-gold w-full !py-3.5">
-          Pay {currency} {price.toLocaleString()} with M-Pesa
+          Pay {tier?.currency} {tier?.price.toLocaleString()} with M-Pesa
         </button>
         <p className="text-[11px] text-ink/45 text-center">
           Payment first, then your ticket and QR gate pass are emailed instantly.

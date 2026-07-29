@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   // from re-processing an already-settled ticket.
   const { data: ticket } = await supabase
     .from("tickets")
-    .select("*, events(*)")
+    .select("*, events(*), event_ticket_tiers(name)")
     .eq("checkout_request_id", checkoutRequestId)
     .eq("status", "pending")
     .maybeSingle();
@@ -46,8 +46,9 @@ export async function POST(request: Request) {
   }).eq("id", ticket.id);
 
   try {
+    const tierName = (ticket as any).event_ticket_tiers?.name;
     const pdfBytes = await generateGatePassPdf({
-      eventTitle: ticket.events.title,
+      eventTitle: tierName ? `${ticket.events.title} — ${tierName}` : ticket.events.title,
       venue: ticket.events.venue,
       startsAt: ticket.events.starts_at,
       buyerName: ticket.buyer_name,
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
     await sendGatePassEmail({
       to: ticket.buyer_email,
       buyerName: ticket.buyer_name,
-      eventTitle: ticket.events.title,
+      eventTitle: tierName ? `${ticket.events.title} (${tierName})` : ticket.events.title,
       ticketNumber,
       pdfBytes,
     });
