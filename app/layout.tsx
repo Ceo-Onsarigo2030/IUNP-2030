@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Inter } from "next/font/google";
 import "./globals.css";
 import { SiteChrome } from "@/components/site-chrome";
@@ -17,8 +17,11 @@ const sans = Inter({
   display: "swap",
 });
 
-export const metadata: Metadata = {
+export const viewport: Viewport = {
   colorScheme: "light",
+};
+
+export const metadata: Metadata = {
   title: {
     default: "UniNexus Connect | Bridging Campus. Building Futures.",
     template: "%s | UniNexus Connect",
