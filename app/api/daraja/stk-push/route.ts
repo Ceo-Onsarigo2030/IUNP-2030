@@ -67,7 +67,16 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ checkoutRequestId });
   } catch (err: any) {
+    // Previously this returned err.message straight to the buyer, so a config/auth
+    // problem on our end showed up on the checkout screen as raw text like "Failed
+    // to authenticate with Daraja." — confusing, and it looked like the buyer's
+    // fault. The real reason is now logged server-side (see lib/daraja.ts) for the
+    // admin to check in Vercel; the buyer just gets a plain, actionable message.
     Sentry.captureException(err);
-    return NextResponse.json({ error: err.message || "Something went wrong." }, { status: 500 });
+    console.error("[stk-push] payment could not be started:", err?.message || err);
+    return NextResponse.json(
+      { error: "We couldn't start your M-Pesa payment right now. Please try again in a moment, or reach us on WhatsApp if it keeps happening." },
+      { status: 502 }
+    );
   }
 }

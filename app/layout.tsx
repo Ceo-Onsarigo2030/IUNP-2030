@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Inter } from "next/font/google";
 import "./globals.css";
-import { SiteHeader } from "@/components/site-header";
-import { SiteFooter } from "@/components/site-footer";
-import { MarqueeBanner } from "@/components/marquee-banner";
+import { SiteChrome } from "@/components/site-chrome";
 
 const display = Cormorant_Garamond({
   subsets: ["latin"],
@@ -43,10 +41,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:z-[100] focus:bg-gold focus:text-ink focus:px-4 focus:py-2 focus:rounded-md">
           Skip to content
         </a>
-        <SiteHeader />
-        <MarqueeBanner />
+        <SiteChrome slot="header" />
         <main id="main">{children}</main>
-        <SiteFooter />
+        <SiteChrome slot="footer" />
       </body>
     </html>
   );

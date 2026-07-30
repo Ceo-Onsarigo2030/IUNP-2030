@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { VoteWidget } from "@/components/vote-widget";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, ArrowRight } from "lucide-react";
 
 async function getCategory(slug: string) {
   try {
@@ -16,13 +16,26 @@ async function getCategory(slug: string) {
       .eq("category_id", category.id)
       .order("sort_order", { ascending: true });
 
+    let nomineesWithMedia = nominees || [];
+    if (nomineesWithMedia.length > 0) {
+      const { data: media } = await supabase
+        .from("gala_nominee_media")
+        .select("*")
+        .in("nominee_id", nomineesWithMedia.map((n: any) => n.id))
+        .order("sort_order", { ascending: true });
+      nomineesWithMedia = nomineesWithMedia.map((n: any) => ({
+        ...n,
+        media: (media || []).filter((m: any) => m.nominee_id === n.id),
+      }));
+    }
+
     let parent = null;
     if (category.parent_id) {
       const { data } = await supabase.from("gala_categories").select("name, slug").eq("id", category.parent_id).maybeSingle();
       parent = data;
     }
 
-    return { category, nominees: nominees || [], parent };
+    return { category, nominees: nomineesWithMedia, parent };
   } catch {
     return null;
   }
@@ -52,6 +65,14 @@ export default async function GalaCategoryPage({ params }: { params: { slug: str
         ) : (
           <VoteWidget categoryId={category.id} nominees={nominees} />
         )}
+
+        <div className="mt-14 card-elegant p-8 text-center max-w-xl mx-auto">
+          <h3 className="font-display text-xl mb-2">Not a member yet?</h3>
+          <p className="text-sm text-ink/60 mb-4">Join UniNexus Connect to follow every category, event and update across Kenyan universities.</p>
+          <Link href="/auth" className="btn-gold inline-flex !py-3 !px-6">
+            Join UniNexus <ArrowRight className="size-4" />
+          </Link>
+        </div>
       </section>
     </div>
   );

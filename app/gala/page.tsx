@@ -67,6 +67,14 @@ export default async function GalaIndexPage() {
             })}
           </div>
         )}
+
+        <div className="mt-14 card-elegant p-8 text-center max-w-xl mx-auto">
+          <h3 className="font-display text-xl mb-2">Not a member yet?</h3>
+          <p className="text-sm text-ink/60 mb-4">Join UniNexus Connect to follow every category, event and update across Kenyan universities.</p>
+          <Link href="/auth" className="btn-gold inline-flex !py-3 !px-6">
+            Join UniNexus <ArrowRight className="size-4" />
+          </Link>
+        </div>
       </section>
     </div>
   );
