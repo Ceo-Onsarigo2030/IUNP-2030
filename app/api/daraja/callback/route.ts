@@ -3,6 +3,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { generateGatePassPdf } from "@/lib/gate-pass";
 import { sendGatePassEmail } from "@/lib/resend";
 import { generateTicketNumber } from "@/lib/utils";
+import * as Sentry from "@sentry/nextjs";
 
 export async function POST(request: Request) {
   const url = new URL(request.url);
@@ -66,6 +67,7 @@ export async function POST(request: Request) {
     await supabase.from("tickets").update({ gate_pass_sent_at: new Date().toISOString() }).eq("id", ticket.id);
   } catch (err) {
     // Payment already succeeded — log for admin follow-up (bulk resend covers this) rather than failing the callback.
+    Sentry.captureException(err);
     console.error("Gate pass email failed for ticket", ticket.id, err);
   }
 
