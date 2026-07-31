@@ -53,6 +53,10 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isAdminRoute) {
+    // Service-role client here on purpose: this check must never be affected by
+    // RLS or by whether the user's session cookie round-tripped perfectly on this
+    // particular request — it's a simple, safe, read-only role lookup by a known
+    // user id, exactly the kind of check the service role exists for.
     const service = createSupabaseClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -77,5 +81,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // Runs on every route (needed for the x-pathname header) except static assets,
+  // which don't render through the React tree anyway.
   matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
