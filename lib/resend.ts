@@ -1,9 +1,5 @@
 import { Resend } from "resend";
 
-// Lazily instantiated — creating this at module load time crashes `next build`
-// during the "Collecting page data" step whenever RESEND_API_KEY isn't set yet
-// (e.g. before you've added environment variables in Vercel). Building the client
-// only when an email actually needs to be sent avoids that entirely.
 let client: Resend | null = null;
 
 function getResendClient() {
@@ -13,18 +9,6 @@ function getResendClient() {
   return client;
 }
 
-/**
- * CRITICAL: the `resend` SDK does NOT throw when the API rejects a send (e.g. the
- * sending domain in RESEND_FROM_EMAIL isn't verified in Resend yet, or — on an
- * unverified/trial account — the recipient isn't the account owner's own address).
- * It resolves successfully with `{ data: null, error: {...} }` instead. Every call
- * site here used to do `return getResendClient().emails.send(...)` and treat that
- * resolved promise as success — so a gate pass email could fail to send with ZERO
- * error anywhere, while the caller (the Daraja callback) went on to mark the ticket's
- * `gate_pass_sent_at` as if it had been delivered. This wrapper makes a Resend-level
- * error actually throw, so existing try/catch blocks around these calls catch it for
- * real, and a ticket only ever gets marked "gate pass sent" once it truly was.
- */
 async function sendOrThrow(payload: Parameters<Resend["emails"]["send"]>[0]) {
   const { data, error } = await getResendClient().emails.send(payload);
   if (error) {
@@ -70,7 +54,6 @@ export async function sendNewsletterWelcomeEmail({ to }: { to: string }) {
 }
 
 export async function sendCampaignEmail({ to, subject, html }: { to: string[]; subject: string; html: string }) {
-  // Resend batches recipients internally when BCC'd this way; for large lists, chunk into batches of ~50.
   const chunks: string[][] = [];
   for (let i = 0; i < to.length; i += 50) chunks.push(to.slice(i, i + 50));
 
