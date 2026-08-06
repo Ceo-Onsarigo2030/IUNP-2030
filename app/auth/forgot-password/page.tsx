@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { MinimalTopBar } from "@/components/minimal-topbar";
 import { Loader2, Mail, CheckCircle2 } from "lucide-react";
 
 export default function ForgotPasswordPage() {
@@ -22,7 +23,9 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-140px)] surface-ink flex items-center py-14">
+    <>
+      <MinimalTopBar />
+      <div className="min-h-screen surface-ink flex items-center py-14">
       <div className="container max-w-md">
         <div className="card-elegant p-8">
           <h1 className="heading-display text-2xl mb-2">Reset your password</h1>
@@ -55,6 +58,7 @@ export default function ForgotPasswordPage() {
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

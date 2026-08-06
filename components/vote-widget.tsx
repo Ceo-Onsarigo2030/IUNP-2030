@@ -3,13 +3,7 @@
 import { useState } from "react";
 import { CheckCircle2, Loader2, AlertCircle, Smartphone, ShieldCheck } from "lucide-react";
 
-type Nominee = {
-  id: string;
-  name: string;
-  bio: string | null;
-  photo_url: string | null;
-  media?: { id: string; media_url: string; media_type: "image" | "video" }[];
-};
+type Nominee = { id: string; name: string; bio: string | null; photo_url: string | null; media_url?: string | null };
 type Step = "choose" | "phone" | "code" | "done";
 
 export function VoteWidget({ categoryId, nominees }: { categoryId: string; nominees: Nominee[] }) {
@@ -148,43 +142,33 @@ export function VoteWidget({ categoryId, nominees }: { categoryId: string; nomin
   );
 }
 
-function NomineeCard({ nominee, onVote }: { nominee: Nominee; onVote: () => void }) {
+function NomineeCard({ nominee: n, onVote }: { nominee: Nominee; onVote: () => void }) {
   const [expanded, setExpanded] = useState(false);
-  const media = nominee.media || [];
+  const bioIsLong = (n.bio?.length || 0) > 60;
 
   return (
     <div className="card-elegant p-6">
-      {nominee.photo_url && (
+      {n.photo_url && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={nominee.photo_url} alt={nominee.name} className="w-full aspect-square object-cover rounded-lg mb-4" />
+        <img src={n.photo_url} alt={n.name} className="w-full aspect-square object-cover rounded-lg mb-4" />
       )}
-      <h3 className="font-display text-lg mb-1">{nominee.name}</h3>
-
-      {nominee.bio && (
-        <div className="mb-3">
-          <p className={expanded ? "text-sm text-ink/60" : "text-sm text-ink/60 truncate"}>{nominee.bio}</p>
-          <button onClick={() => setExpanded((v) => !v)} className="text-xs font-semibold text-gold-deep mt-0.5">
-            {expanded ? "Show less" : "Read more"}
-          </button>
-        </div>
+      <h3 className="font-display text-lg mb-1">{n.name}</h3>
+      {n.bio && (
+        <p className="text-sm text-ink/60 mb-2">
+          {expanded || !bioIsLong ? n.bio : `${n.bio.slice(0, 60)}…`}
+          {bioIsLong && (
+            <button onClick={() => setExpanded((v) => !v)} className="text-gold-deep font-semibold ml-1">
+              {expanded ? "Show less" : "Read more"}
+            </button>
+          )}
+        </p>
       )}
-
-      {media.length > 0 && (
-        <div className="grid grid-cols-3 gap-1.5 mb-4">
-          {media.slice(0, 6).map((m) => (
-            <div key={m.id} className="rounded-md overflow-hidden aspect-square bg-black/5">
-              {m.media_type === "video" ? (
-                <video src={m.media_url} className="w-full h-full object-cover" muted playsInline />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={m.media_url} alt="" className="w-full h-full object-cover" />
-              )}
-            </div>
-          ))}
-        </div>
+      {n.media_url && (
+        <a href={n.media_url} target="_blank" rel="noreferrer" className="block text-xs font-semibold text-gold-deep mb-4">
+          View their work →
+        </a>
       )}
-
-      <button onClick={onVote} className="btn-gold w-full !py-2.5">Vote</button>
+      <button onClick={onVote} className="btn-gold w-full !py-2.5 mt-2">Vote</button>
     </div>
   );
 }

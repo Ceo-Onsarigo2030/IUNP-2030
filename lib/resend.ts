@@ -1,5 +1,9 @@
 import { Resend } from "resend";
 
+// Lazily instantiated — creating this at module load time crashes `next build`
+// during the "Collecting page data" step whenever RESEND_API_KEY isn't set yet
+// (e.g. before you've added environment variables in Vercel). Building the client
+// only when an email actually needs to be sent avoids that entirely.
 let client: Resend | null = null;
 
 function getResendClient() {
@@ -9,18 +13,10 @@ function getResendClient() {
   return client;
 }
 
-async function sendOrThrow(payload: Parameters<Resend["emails"]["send"]>[0]) {
-  const { data, error } = await getResendClient().emails.send(payload);
-  if (error) {
-    throw new Error(`Resend rejected the email to ${Array.isArray(payload.to) ? payload.to.join(", ") : payload.to}: ${error.message} (${error.name})`);
-  }
-  return data;
-}
-
 export async function sendGatePassEmail({
   to, buyerName, eventTitle, ticketNumber, pdfBytes,
 }: { to: string; buyerName: string; eventTitle: string; ticketNumber: string; pdfBytes: Uint8Array }) {
-  return sendOrThrow({
+  return getResendClient().emails.send({
     from: process.env.RESEND_FROM_EMAIL || "UniNexus Connect <tickets@uninexusconnect.org>",
     to,
     subject: `Your gate pass — ${eventTitle}`,
@@ -37,28 +33,13 @@ export async function sendGatePassEmail({
   });
 }
 
-export async function sendNewsletterWelcomeEmail({ to }: { to: string }) {
-  return sendOrThrow({
-    from: process.env.RESEND_FROM_EMAIL || "UniNexus Connect <news@uninexusconnect.org>",
-    to,
-    subject: "You're subscribed — UniNexus Connect",
-    html: `
-      <div style="font-family: Georgia, serif; background:#0A0A0B; color:#FAF7EF; padding:32px; border-radius:12px;">
-        <p style="color:#C9A227; letter-spacing:2px; font-size:12px; text-transform:uppercase;">UniNexus Connect</p>
-        <h1 style="font-size:22px; margin:8px 0 16px;">You're on the list</h1>
-        <p>Thanks for subscribing. You'll hear from us whenever there's real news, events or opportunities worth your time — no spam, no noise.</p>
-        <p style="color:#9a9890; font-size:12px; margin-top:24px;">Bridging Campus. Building Futures.</p>
-      </div>
-    `,
-  });
-}
-
 export async function sendCampaignEmail({ to, subject, html }: { to: string[]; subject: string; html: string }) {
+  // Resend batches recipients internally when BCC'd this way; for large lists, chunk into batches of ~50.
   const chunks: string[][] = [];
   for (let i = 0; i < to.length; i += 50) chunks.push(to.slice(i, i + 50));
 
   for (const chunk of chunks) {
-    await sendOrThrow({
+    await getResendClient().emails.send({
       from: process.env.RESEND_FROM_EMAIL || "UniNexus Connect <news@uninexusconnect.org>",
       to: process.env.RESEND_FROM_EMAIL || "news@uninexusconnect.org",
       bcc: chunk,

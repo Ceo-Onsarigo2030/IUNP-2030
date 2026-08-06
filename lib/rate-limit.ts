@@ -30,8 +30,9 @@ export const otpRequestPhoneLimiter = makeLimiter(3, "15 m");
 export const otpRequestIpLimiter = makeLimiter(10, "15 m");
 // OTP verify — a few genuine mistypes allowed, but not enough for brute-forcing a 6-digit code.
 export const otpVerifyLimiter = makeLimiter(8, "15 m");
-// Article like/unlike toggling — generous, it's a low-stakes action, just blunt scripted spam.
-export const articleLikeLimiter = makeLimiter(60, "10 m");
+// Payment status polling — generous since the widget legitimately polls every 3s
+// during a real purchase, but still bounded against scripted enumeration.
+export const statusPollLimiter = makeLimiter(60, "10 m");
 
 export function clientIp(request: Request) {
   const fwd = request.headers.get("x-forwarded-for");

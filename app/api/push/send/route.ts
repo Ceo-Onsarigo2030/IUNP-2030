@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { ensureWebPushConfigured, webpush } from "@/lib/web-push";
+import { enforceCors } from "@/lib/cors";
 
 export async function POST(request: Request) {
+  const corsBlock = enforceCors(request);
+  if (corsBlock) return corsBlock;
+
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const { data: role } = await supabase.from("user_roles").select("role").eq("user_id", user?.id || "").eq("role", "admin").maybeSingle();

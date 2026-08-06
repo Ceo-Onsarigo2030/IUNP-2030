@@ -66,8 +66,13 @@ export async function POST(request: Request) {
 
     await supabase.from("tickets").update({ gate_pass_sent_at: new Date().toISOString() }).eq("id", ticket.id);
   } catch (err) {
-    // Payment already succeeded — log for admin follow-up (bulk resend covers this) rather than failing the callback.
-    Sentry.captureException(err);
+    // Payment already succeeded — never fail the callback over this. But make sure
+    // it's actually visible (Vercel's own logs expire in ~1h on the Hobby plan),
+    // and the admin can manually resend once the cause is fixed (Admin > Events >
+    // Tickets > select ticket > Resend gate pass).
+    Sentry.captureException(err, {
+      extra: { ticketId: ticket.id, buyerEmail: ticket.buyer_email, event: ticket.events?.title },
+    });
     console.error("Gate pass email failed for ticket", ticket.id, err);
   }
 

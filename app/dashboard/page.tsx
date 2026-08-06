@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { MembershipCard } from "@/components/membership-card";
 import { ProfileForm } from "@/components/profile-form";
+import { MinimalTopBar } from "@/components/minimal-topbar";
 import { ArrowRight } from "lucide-react";
 
 export default async function DashboardPage() {
@@ -20,6 +21,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="bg-cream min-h-screen">
+      <MinimalTopBar />
       <section className="surface-ink py-14">
         <div className="container">
           <p className="eyebrow mb-2">Welcome back</p>

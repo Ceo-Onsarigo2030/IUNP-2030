@@ -1,7 +1,6 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { Cormorant_Garamond, Inter } from "next/font/google";
 import "./globals.css";
-import { SiteChrome } from "@/components/site-chrome";
 
 const display = Cormorant_Garamond({
   subsets: ["latin"],
@@ -17,11 +16,8 @@ const sans = Inter({
   display: "swap",
 });
 
-export const viewport: Viewport = {
-  colorScheme: "light",
-};
-
 export const metadata: Metadata = {
+  colorScheme: "light",
   title: {
     default: "UniNexus Connect | Bridging Campus. Building Futures.",
     template: "%s | UniNexus Connect",
@@ -37,17 +33,14 @@ export const metadata: Metadata = {
   },
 };
 
+// Root shell only — no header/marquee/footer here. Those belong exclusively
+// to the public marketing pages (see app/(public)/layout.tsx), so /admin,
+// /auth, and /dashboard get their own clean chrome instead of the public
+// site's header, ticker, and footer stacking on top of theirs.
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${display.variable} ${sans.variable}`}>
-      <body>
-        <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:z-[100] focus:bg-gold focus:text-ink focus:px-4 focus:py-2 focus:rounded-md">
-          Skip to content
-        </a>
-        <SiteChrome slot="header" />
-        <main id="main">{children}</main>
-        <SiteChrome slot="footer" />
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
