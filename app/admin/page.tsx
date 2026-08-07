@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Users, CalendarDays, Ticket, Mail } from "lucide-react";
+import { SignupShareCard } from "@/components/admin/signup-share-card";
 
 async function getSnapshot() {
   const supabase = createClient();
@@ -25,6 +26,11 @@ export default async function AdminOverviewPage() {
   return (
     <div className="p-8 sm:p-10">
       <h1 className="heading-display text-3xl mb-8">Overview</h1>
+
+      <div className="mb-8">
+        <SignupShareCard />
+      </div>
+
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {cards.map((c) => (
           <Link key={c.label} href={c.href} className="card-elegant p-6 hover:shadow-gold transition-shadow">

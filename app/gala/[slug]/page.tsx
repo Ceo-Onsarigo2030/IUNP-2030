@@ -1,8 +1,20 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { VoteWidget } from "@/components/vote-widget";
 import { ChevronLeft, ArrowRight } from "lucide-react";
+
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const supabase = createClient();
+  const { data: category } = await supabase.from("gala_categories").select("name, description").eq("slug", params.slug).maybeSingle();
+  if (!category) return {};
+
+  return {
+    title: `${category.name} — UniNexus Gala Awards`,
+    description: category.description || `Vote for your favourite nominee in ${category.name}.`,
+  };
+}
 
 async function getCategory(slug: string) {
   try {

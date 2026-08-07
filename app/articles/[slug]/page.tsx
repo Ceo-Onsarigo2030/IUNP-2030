@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { CommentSection } from "@/components/comment-section";
 import { ArticleMediaGallery } from "@/components/article-media-gallery";
@@ -16,6 +17,22 @@ async function getArticle(slug: string) {
     .order("sort_order", { ascending: true });
 
   return { article, media: media || [] };
+}
+
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const { article } = await getArticle(params.slug);
+  if (!article) return {};
+
+  return {
+    title: article.title,
+    description: article.excerpt || undefined,
+    openGraph: {
+      title: article.title,
+      description: article.excerpt || undefined,
+      type: "article",
+      images: article.cover_url ? [article.cover_url] : undefined,
+    },
+  };
 }
 
 export default async function ArticleDetailPage({ params }: { params: { slug: string } }) {

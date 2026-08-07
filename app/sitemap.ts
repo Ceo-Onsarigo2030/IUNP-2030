@@ -37,6 +37,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     return [...staticRoutes, ...articleRoutes, ...galaRoutes];
   } catch {
+    // If Supabase is unreachable at build/request time, still serve the static routes
+    // rather than a broken sitemap.
     return staticRoutes;
   }
 }

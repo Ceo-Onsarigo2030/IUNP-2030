@@ -23,6 +23,7 @@ async function getEvents() {
         .from("event_ticket_tiers")
         .select("*")
         .eq("event_id", current.id)
+        .eq("is_active", true)
         .order("sort_order", { ascending: true });
       tiers = data || [];
     }
