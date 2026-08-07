@@ -37,7 +37,7 @@ export async function sendGatePassEmail({
   to, buyerName, eventTitle, ticketNumber, pdfBytes,
 }: { to: string; buyerName: string; eventTitle: string; ticketNumber: string; pdfBytes: Uint8Array }) {
   return sendOrThrow({
-    from: process.env.RESEND_FROM_EMAIL || "UniNexus Connect <tickets@uninexusconnect.org>",
+    from: process.env.RESEND_FROM_EMAIL || "UniNexus Connect <tickets@uninexusconnectplatform.co.ke>,
     to,
     subject: `Your gate pass — ${eventTitle}`,
     html: `
@@ -55,7 +55,7 @@ export async function sendGatePassEmail({
 
 export async function sendNewsletterWelcomeEmail({ to }: { to: string }) {
   return sendOrThrow({
-    from: process.env.RESEND_FROM_EMAIL || "UniNexus Connect <news@uninexusconnect.org>",
+    from: process.env.RESEND_FROM_EMAIL || "UniNexus Connect <news@uninexusconnectplatform.co.ke>",
     to,
     subject: "You're subscribed — UniNexus Connect",
     html: `
@@ -76,8 +76,8 @@ export async function sendCampaignEmail({ to, subject, html }: { to: string[]; s
 
   for (const chunk of chunks) {
     await sendOrThrow({
-      from: process.env.RESEND_FROM_EMAIL || "UniNexus Connect <news@uninexusconnect.org>",
-      to: process.env.RESEND_FROM_EMAIL || "news@uninexusconnect.org",
+      from: process.env.RESEND_FROM_EMAIL || "UniNexus Connect <news@uninexusconnectplatform.co.ke>",
+      to: process.env.RESEND_FROM_EMAIL ||  "news@uninexusconnectplatform.co.ke",
       bcc: chunk,
       subject,
       html,
