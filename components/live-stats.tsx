@@ -1,52 +1,71 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Users, Accessibility, Building2, CalendarCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 type Stats = { members: number; disability: number; institutions: number; events: number };
 
+const POLL_MS = 15_000;
+
+// IMPORTANT: this reads through the `get_public_stats()` RPC (security definer,
+// defined in supabase/migrations/0001_init.sql), never the `profiles` table directly.
+// `profiles` is RLS-locked to "own row or admin", so querying it from the browser
+// used to return a different (wrong) count on every device/session — signed-out
+// visitors got 0, a signed-in member got ~1, only an admin ever saw the real total.
+// The RPC bypasses that and always returns the true platform-wide counts.
 function useLiveStats() {
   const [stats, setStats] = useState<Stats>({ members: 0, disability: 0, institutions: 0, events: 0 });
+  const mountedRef = useRef(true);
 
   useEffect(() => {
-    let channel: ReturnType<ReturnType<typeof createClient>["channel"]> | null = null;
+    mountedRef.current = true;
     let supabaseClient: ReturnType<typeof createClient> | null = null;
+    let channel: ReturnType<ReturnType<typeof createClient>["channel"]> | null = null;
+    let pollId: ReturnType<typeof setInterval> | null = null;
+
+    async function load() {
+      try {
+        const supabase = supabaseClient!;
+        const { data, error } = await supabase.rpc("get_public_stats");
+        if (error || !data) return;
+        const row = Array.isArray(data) ? data[0] : data;
+        if (!row || !mountedRef.current) return;
+        setStats({
+          members: Number(row.members) || 0,
+          disability: Number(row.disability) || 0,
+          institutions: Number(row.institutions) || 0,
+          events: Number(row.events) || 0,
+        });
+      } catch {
+        // Supabase not reachable yet (e.g. env vars not configured) — leave stats as-is.
+      }
+    }
 
     try {
-      const supabase = createClient();
-      supabaseClient = supabase;
-
-      async function load() {
-        try {
-          const [{ count: members }, { count: disability }, { count: events }] = await Promise.all([
-            supabase.from("profiles").select("id", { count: "exact", head: true }),
-            supabase.from("profiles").select("id", { count: "exact", head: true }).eq("has_disability", true),
-            supabase.from("events").select("id", { count: "exact", head: true }),
-          ]);
-          const { data: institutionRows } = await supabase
-            .from("profiles")
-            .select("institution_name")
-            .eq("category", "institution");
-          const institutions = new Set((institutionRows || []).map((r: any) => r.institution_name)).size;
-
-          setStats({ members: members || 0, disability: disability || 0, institutions, events: events || 0 });
-        } catch {
-          // Supabase not reachable yet (e.g. env vars not configured) — leave stats at zero rather than crash.
-        }
-      }
+      supabaseClient = createClient();
 
       load();
 
-      channel = supabase
+      // Poll on an interval so numbers stay current for every visitor without
+      // needing to refresh the page — this is the primary update mechanism.
+      pollId = setInterval(load, POLL_MS);
+
+      // Realtime is a nice-to-have on top of polling: if it's wired up (replication
+      // enabled for these tables) it makes updates feel instant; if not, polling
+      // above still keeps things correct within POLL_MS.
+      channel = supabaseClient
         .channel("live-stats")
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "profiles" }, load)
+        .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, load)
+        .on("postgres_changes", { event: "*", schema: "public", table: "events" }, load)
         .subscribe();
     } catch {
-      // createClient() itself threw (missing Supabase env vars) — stats stay at zero, rest of the page still renders.
+      // createClient() itself threw (missing Supabase env vars) — stats stay at zero.
     }
 
     return () => {
+      mountedRef.current = false;
+      if (pollId) clearInterval(pollId);
       if (supabaseClient && channel) supabaseClient.removeChannel(channel);
     };
   }, []);

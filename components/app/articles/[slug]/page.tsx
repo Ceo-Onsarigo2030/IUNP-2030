@@ -1,0 +1,75 @@
+import { notFound } from "next/navigation";
+import type { Metadata } from "next";
+import { createClient } from "@/lib/supabase/server";
+import { CommentSection } from "@/components/comment-section";
+import { ArticleMediaGallery } from "@/components/article-media-gallery";
+import { ArticleLikeButton } from "@/components/article-like-button";
+
+async function getArticle(slug: string) {
+  const supabase = createClient();
+  const { data: article } = await supabase.from("articles").select("*").eq("slug", slug).maybeSingle();
+  if (!article) return { article: null, media: [] };
+
+  const { data: media } = await supabase
+    .from("article_media")
+    .select("*")
+    .eq("article_id", article.id)
+    .order("sort_order", { ascending: true });
+
+  return { article, media: media || [] };
+}
+
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const { article } = await getArticle(params.slug);
+  if (!article) return {};
+
+  return {
+    title: article.title,
+    description: article.excerpt || undefined,
+    openGraph: {
+      title: article.title,
+      description: article.excerpt || undefined,
+      type: "article",
+      images: article.cover_url ? [article.cover_url] : undefined,
+    },
+  };
+}
+
+export default async function ArticleDetailPage({ params }: { params: { slug: string } }) {
+  const { article, media } = await getArticle(params.slug);
+  if (!article) notFound();
+
+  return (
+    <div className="bg-cream">
+      <section className="surface-ink py-14 sm:py-20 text-center">
+        <div className="container max-w-3xl">
+          {article.is_pinned && <span className="eyebrow !text-gold">Pinned</span>}
+          <h1 className="heading-display text-3xl sm:text-5xl text-cream mt-3">{article.title}</h1>
+          <p className="mt-4 text-cream/60">
+            {article.published_at && new Date(article.published_at).toLocaleDateString("en-KE", { month: "long", day: "numeric", year: "numeric" })}
+          </p>
+        </div>
+      </section>
+
+      <article className="container py-14 sm:py-20 max-w-3xl">
+        <div className="mb-8">
+          <ArticleLikeButton articleId={article.id} initialLikeCount={article.like_count || 0} />
+        </div>
+
+        <div className="prose-content text-ink/75 leading-relaxed text-[15px] sm:text-base space-y-5 whitespace-pre-line">
+          {article.body}
+        </div>
+
+        <ArticleMediaGallery media={media} />
+
+        <div className="mt-16 border-t border-black/10 pt-10">
+          {article.comments_enabled ? (
+            <CommentSection articleId={article.id} />
+          ) : (
+            <p className="text-sm text-ink/45 italic">Comments are disabled for this article.</p>
+          )}
+        </div>
+      </article>
+    </div>
+  );
+}

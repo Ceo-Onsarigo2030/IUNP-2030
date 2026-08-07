@@ -13,10 +13,41 @@ export function normalizePhone(raw: string) {
   return digits;
 }
 
-// Cached in module scope — a warm serverless instance reuses this instead of
-// re-authenticating with Safaricom on every single ticket purchase, which is
-// most of the delay users feel before the STK prompt reaches their phone.
-// Daraja tokens are valid ~1 hour; refreshed 2 minutes early to be safe.
+/**
+ * Reads the first set env var among several possible names and trims it.
+ * The project's .env.example documents DARAJA_* names, but this Vercel project
+ * was actually configured with MPESA_* names for the shortcode/till/passkey
+ * (real production credentials for a Till/Buy Goods account) — rather than
+ * make the admin rename anything in Vercel, the code now accepts either.
+ * .trim() matters: a key/secret pasted from the Daraja portal into Vercel's
+ * env var UI very commonly picks up a trailing newline/space, which silently
+ * breaks the Base64 Authorization header.
+ */
+function envAny(names: string[]) {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  return undefined;
+}
+
+function requiredEnvAny(names: string[]) {
+  const value = envAny(names);
+  if (!value) {
+    throw new Error(
+      `Daraja is not configured: none of these environment variables are set in Vercel: ${names.join(", ")}.`
+    );
+  }
+  return value;
+}
+
+// Safaricom's OAuth token is valid for ~3600 seconds. Previously every single STK
+// push call fetched a brand new token first — meaning every ticket buyer waited
+// through TWO sequential Safaricom round-trips (get a token, then start the STK
+// push) before their phone even prompted for a PIN. Caching the token for its
+// actual lifetime (with a safety margin) cuts that to one round-trip for every
+// purchase except roughly the first one per hour, which is where the "loads a lot
+// before the PIN" delay was actually coming from.
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
 export async function getDarajaToken() {
@@ -24,26 +55,29 @@ export async function getDarajaToken() {
     return cachedToken.token;
   }
 
-  const auth = Buffer.from(`${process.env.DARAJA_CONSUMER_KEY}:${process.env.DARAJA_CONSUMER_SECRET}`).toString("base64");
+  const consumerKey = requiredEnvAny(["DARAJA_CONSUMER_KEY", "MPESA_CONSUMER_KEY"]);
+  const consumerSecret = requiredEnvAny(["DARAJA_CONSUMER_SECRET", "MPESA_CONSUMER_SECRET"]);
+  const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString("base64");
+
   const res = await fetch(`${BASE_URL()}/oauth/v1/generate?grant_type=client_credentials`, {
     headers: { Authorization: `Basic ${auth}` },
     cache: "no-store",
   });
 
   if (!res.ok) {
+    // Log Safaricom's actual rejection reason (previously discarded) so the next
+    // failure shows up in Vercel's runtime logs/Sentry with the real cause instead
+    // of a dead end.
     const bodyText = await res.text().catch(() => "");
-    Sentry.captureMessage("Daraja OAuth failed", {
-      level: "error",
-      extra: { status: res.status, body: bodyText, env: process.env.DARAJA_ENV },
-    });
-    // Logged with real detail above (visible in Sentry/Vercel logs) — the most common
-    // causes are a wrong DARAJA_CONSUMER_KEY/SECRET or a DARAJA_ENV/credential mismatch
-    // (sandbox credentials used with DARAJA_ENV=production, or vice versa).
+    const detail = `Safaricom OAuth rejected the request (HTTP ${res.status}, env=${process.env.DARAJA_ENV || "sandbox"}): ${bodyText.slice(0, 500)}`;
+    Sentry.captureMessage(detail, "error");
+    console.error("[daraja] " + detail);
     throw new Error("Failed to authenticate with Daraja.");
   }
 
   const data = await res.json();
-  cachedToken = { token: data.access_token, expiresAt: Date.now() + 55 * 60 * 1000 };
+  const expiresInSeconds = Number(data.expires_in) || 3600;
+  cachedToken = { token: data.access_token, expiresAt: Date.now() + (expiresInSeconds - 120) * 1000 };
   return cachedToken.token;
 }
 
@@ -57,20 +91,34 @@ export async function initiateStkPush({
   phone, amount, accountRef, description,
 }: { phone: string; amount: number; accountRef: string; description: string }) {
   const token = await getDarajaToken();
+
+  // MPESA_SHORTCODE: the online shortcode Safaricom issued for this STK Push app —
+  // used to generate the password/auth, NOT necessarily what the customer sees.
+  // MPESA_TILL: the actual Till (Buy Goods) number Bridging Academia Connect
+  // Organization's till pays into — that's PartyB, the account the money lands in.
+  // Previously the code only knew a single "DARAJA_SHORTCODE" and always sent
+  // TransactionType "CustomerPayBillOnline" — wrong for a Till/Buy Goods account,
+  // which Safaricom will simply reject (that's the actual root cause of the
+  // "Failed to authenticate with Daraja." / STK push failures here).
+  const shortcode = requiredEnvAny(["MPESA_SHORTCODE", "DARAJA_SHORTCODE"]);
+  const till = envAny(["MPESA_TILL"]) || shortcode;
+  const passkey = requiredEnvAny(["MPESA_PASSKEY", "DARAJA_PASSKEY"]);
+  const isBuyGoods = Boolean(envAny(["MPESA_TILL"]));
+
   const ts = timestamp();
-  const password = Buffer.from(`${process.env.DARAJA_SHORTCODE}${process.env.DARAJA_PASSKEY}${ts}`).toString("base64");
+  const password = Buffer.from(`${shortcode}${passkey}${ts}`).toString("base64");
 
   const res = await fetch(`${BASE_URL()}/mpesa/stkpush/v1/processrequest`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      BusinessShortCode: process.env.DARAJA_SHORTCODE,
+      BusinessShortCode: shortcode,
       Password: password,
       Timestamp: ts,
-      TransactionType: "CustomerPayBillOnline",
+      TransactionType: isBuyGoods ? "CustomerBuyGoodsOnline" : "CustomerPayBillOnline",
       Amount: Math.max(1, Math.round(amount)),
       PartyA: phone,
-      PartyB: process.env.DARAJA_SHORTCODE,
+      PartyB: till,
       PhoneNumber: phone,
       CallBackURL: process.env.DARAJA_CALLBACK_URL,
       AccountReference: accountRef.slice(0, 12),
@@ -80,10 +128,9 @@ export async function initiateStkPush({
 
   const data = await res.json();
   if (!res.ok || data.ResponseCode !== "0") {
-    Sentry.captureMessage("Daraja STK push rejected", {
-      level: "error",
-      extra: { status: res.status, response: data },
-    });
+    const detail = `STK push rejected (HTTP ${res.status}, env=${process.env.DARAJA_ENV || "sandbox"}, type=${isBuyGoods ? "BuyGoods" : "PayBill"}): ${JSON.stringify(data).slice(0, 500)}`;
+    Sentry.captureMessage(detail, "error");
+    console.error("[daraja] " + detail);
     throw new Error(data.errorMessage || data.ResponseDescription || "STK push request failed.");
   }
   return { checkoutRequestId: data.CheckoutRequestID as string, merchantRequestId: data.MerchantRequestID as string };
