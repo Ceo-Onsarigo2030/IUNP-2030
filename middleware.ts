@@ -3,12 +3,27 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
-  // Build the response once and mutate it in place — previously this was being
+  const path = request.nextUrl.pathname;
+  const isAdminRoute = path.startsWith("/admin");
+  const isDashboardRoute = path.startsWith("/dashboard");
+
+  // Every request gets its pathname forwarded as a header — this is how Server
+  // Components (which have no usePathname()-equivalent) can tell whether they're
+  // rendering inside /admin. Cheap: no Supabase call, just a header write.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", path);
+
+  // Building the response once and mutating it in place — previously this was being
   // reassigned to a brand-new NextResponse.next() inside cookies.set()/remove(),
   // which silently dropped any cookie already attached if Supabase needed to set
   // more than one (e.g. refreshing both the access and refresh token). That could
   // leave the session cookie in a half-written state on some requests.
-  const response = NextResponse.next({ request: { headers: request.headers } });
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+
+  // The Supabase auth check below is real work (a network round-trip) — only pay
+  // for it on the routes that actually need to be guarded, not on every request
+  // site-wide now that middleware runs everywhere for the pathname header.
+  if (!isAdminRoute && !isDashboardRoute) return response;
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -30,18 +45,14 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  const path = request.nextUrl.pathname;
-  const isAdminRoute = path.startsWith("/admin");
-  const isDashboardRoute = path.startsWith("/dashboard");
-
-  if ((isAdminRoute || isDashboardRoute) && !user) {
+  if (!user) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth";
     url.searchParams.set("redirect", path);
     return NextResponse.redirect(url);
   }
 
-  if (isAdminRoute && user) {
+  if (isAdminRoute) {
     // Service-role client here on purpose: this check must never be affected by
     // RLS or by whether the user's session cookie round-tripped perfectly on this
     // particular request — it's a simple, safe, read-only role lookup by a known
@@ -70,5 +81,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/dashboard/:path*"],
+  // Runs on every route (needed for the x-pathname header) except static assets,
+  // which don't render through the React tree anyway.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
