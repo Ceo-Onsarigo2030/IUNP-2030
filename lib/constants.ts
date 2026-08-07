@@ -27,34 +27,21 @@ export const SLOGAN = "Bridging Campus. Building Futures.";
 
 export type MemberCategory = "institution" | "affiliation" | "other";
 
-export const MEMBER_CATEGORIES: {
-  value: MemberCategory;
-  label: string;
-  hint: string;
-  /** Label for the required "specify" field shown once this category is selected. */
-  fieldLabel: string;
-  fieldPlaceholder: string;
-}[] = [
+export const MEMBER_CATEGORIES: { value: MemberCategory; label: string; hint: string }[] = [
   {
     value: "institution",
     label: "University, College or Tertiary Institution",
     hint: "e.g. Kenyatta University, Kiriri Women's University",
-    fieldLabel: "Name of your university, college or institution",
-    fieldPlaceholder: "e.g. Kenyatta University",
   },
   {
     value: "affiliation",
     label: "Affiliation, Organization or Association",
     hint: "e.g. organization, association, youth group",
-    fieldLabel: "Name of your organization, affiliation or association",
-    fieldPlaceholder: "e.g. Kenya Youth Alliance",
   },
   {
     value: "other",
     label: "Other",
     hint: "e.g. alumni, well-wisher, any youth",
-    fieldLabel: "Please specify",
-    fieldPlaceholder: "e.g. Alumni, well-wisher, independent youth",
   },
 ];
 
