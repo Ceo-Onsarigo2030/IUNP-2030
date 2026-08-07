@@ -124,9 +124,7 @@ export default function AdminEventsPage() {
 function TiersPanel({ event, onClose }: { event: any; onClose: () => void }) {
   const [tiers, setTiers] = useState<any[]>([]);
   const [form, setForm] = useState({ name: "", price: "", description: "" });
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function load() {
     const supabase = createClient();
@@ -135,60 +133,26 @@ function TiersPanel({ event, onClose }: { event: any; onClose: () => void }) {
   }
   useEffect(() => { load(); }, [event.id]);
 
-  async function saveTier(e: React.FormEvent) {
+  async function addTier(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setError(null);
     const supabase = createClient();
-    const payload = { name: form.name, price: Number(form.price), description: form.description || null };
-
-    const { error: err } = editingId
-      ? await supabase.from("event_ticket_tiers").update(payload).eq("id", editingId)
-      : await supabase.from("event_ticket_tiers").insert({ ...payload, event_id: event.id, sort_order: tiers.length });
-
-    if (err) setError(err.message);
-    else {
-      setForm({ name: "", price: "", description: "" });
-      setEditingId(null);
-    }
-    setSaving(false);
-    load();
-  }
-
-  function startEdit(t: any) {
-    setForm({ name: t.name, price: String(t.price), description: t.description || "" });
-    setEditingId(t.id);
-    setError(null);
-  }
-
-  function cancelEdit() {
+    await supabase.from("event_ticket_tiers").insert({
+      event_id: event.id,
+      name: form.name,
+      price: Number(form.price),
+      description: form.description || null,
+      sort_order: tiers.length,
+    });
     setForm({ name: "", price: "", description: "" });
-    setEditingId(null);
-    setError(null);
-  }
-
-  async function toggleActive(t: any) {
-    const supabase = createClient();
-    await supabase.from("event_ticket_tiers").update({ is_active: !t.is_active }).eq("id", t.id);
+    setSaving(false);
     load();
   }
 
   async function removeTier(id: string) {
     if (!confirm("Remove this ticket tier?")) return;
     const supabase = createClient();
-    const { error: err } = await supabase.from("event_ticket_tiers").delete().eq("id", id);
-    if (err) {
-      // Previously a failed delete did nothing visible at all — an admin trying to
-      // remove a tier that already has real paid tickets against it (blocked on
-      // purpose, to protect sales history) would just see... nothing happen, with
-      // no explanation. Now it says exactly why, and points to the actual fix.
-      if (err.code === "23503") {
-        alert("Can't delete this tier — tickets have already been sold under it, so removing it would break that sales record. Use the archive toggle instead to hide it from new purchases while keeping the history intact.");
-      } else {
-        alert(`Couldn't delete this tier: ${err.message}`);
-      }
-      return;
-    }
+    await supabase.from("event_ticket_tiers").delete().eq("id", id);
     load();
   }
 
@@ -200,10 +164,7 @@ function TiersPanel({ event, onClose }: { event: any; onClose: () => void }) {
           <button onClick={onClose} className="p-2 hover:bg-black/5 rounded-full"><X className="size-4" /></button>
         </div>
         <div className="overflow-y-auto flex-1 p-5 space-y-5">
-          {error && <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">{error}</div>}
-
-          <form onSubmit={saveTier} className="card-elegant p-4 space-y-2">
-            <p className="text-xs font-semibold text-ink/50">{editingId ? "Editing tier" : "New tier"}</p>
+          <form onSubmit={addTier} className="card-elegant p-4 space-y-2">
             <input required placeholder="Tier name e.g. Regular, VIP, VVIP" value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               className="w-full rounded-lg border border-black/10 px-3 py-2 text-sm" />
@@ -213,33 +174,19 @@ function TiersPanel({ event, onClose }: { event: any; onClose: () => void }) {
             <input placeholder="What's included (optional)" value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
               className="w-full rounded-lg border border-black/10 px-3 py-2 text-sm" />
-            <div className="flex gap-2">
-              <button type="submit" disabled={saving} className="btn-gold flex-1 !py-2.5 disabled:opacity-60">
-                {saving ? <Loader2 className="size-4 animate-spin" /> : editingId ? "Save changes" : <><Plus className="size-4" /> Add tier</>}
-              </button>
-              {editingId && (
-                <button type="button" onClick={cancelEdit} className="text-xs px-4 rounded-lg border border-black/10">Cancel</button>
-              )}
-            </div>
+            <button type="submit" disabled={saving} className="btn-gold w-full !py-2.5 disabled:opacity-60">
+              {saving ? <Loader2 className="size-4 animate-spin" /> : <><Plus className="size-4" /> Add tier</>}
+            </button>
           </form>
 
           <div className="space-y-2">
             {tiers.map((t) => (
-              <div key={t.id} className={`rounded-lg bg-white border border-black/5 p-3 flex items-center justify-between ${!t.is_active ? "opacity-50" : ""}`}>
+              <div key={t.id} className="rounded-lg bg-white border border-black/5 p-3 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold">
-                    {t.name} — KES {Number(t.price).toLocaleString()}
-                    {!t.is_active && <span className="ml-2 text-[10px] uppercase tracking-wider text-ink/40">Archived</span>}
-                  </p>
+                  <p className="text-sm font-semibold">{t.name} — KES {Number(t.price).toLocaleString()}</p>
                   {t.description && <p className="text-xs text-ink/50">{t.description}</p>}
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <button onClick={() => startEdit(t)} className="text-xs text-ink/50 hover:text-ink">Edit</button>
-                  <button onClick={() => toggleActive(t)} className="text-xs text-gold-deep hover:text-gold">
-                    {t.is_active ? "Archive" : "Unarchive"}
-                  </button>
-                  <button onClick={() => removeTier(t.id)} className="text-red-500 hover:text-red-700"><Trash2 className="size-3.5" /></button>
-                </div>
+                <button onClick={() => removeTier(t.id)} className="text-red-500 hover:text-red-700"><Trash2 className="size-3.5" /></button>
               </div>
             ))}
             {tiers.length === 0 && <p className="text-sm text-ink/40 text-center">No tiers yet — add Regular, VIP, VVIP above.</p>}
@@ -255,10 +202,6 @@ function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [resending, setResending] = useState(false);
   const [result, setResult] = useState<string | null>(null);
-  // Default view is successful payments only — that's what admins need day to day
-  // (who paid, their gate pass number, whether they've received it). Failed/pending
-  // attempts are one tab away, not mixed into the main table.
-  const [view, setView] = useState<"successful" | "all">("successful");
 
   useEffect(() => {
     const supabase = createClient();
@@ -268,9 +211,6 @@ function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
         () => setTickets([])
       );
   }, [event.id]);
-
-  const visibleTickets = view === "successful" ? tickets.filter((t) => t.status === "paid") : tickets;
-  const paidCount = tickets.filter((t) => t.status === "paid").length;
 
   function toggle(id: string) {
     setSelected((s) => {
@@ -287,25 +227,15 @@ function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
 
   function exportCsv() {
     const rows = [
-      ["gate_pass_number", "buyer_name", "buyer_email", "buyer_phone", "amount", "status", "mpesa_receipt", "gate_pass_received", "created_at"],
-      ...visibleTickets.map((t) => [
-        t.ticket_number || "",
-        t.buyer_name,
-        t.buyer_email,
-        t.buyer_phone,
-        t.amount,
-        t.status,
-        t.mpesa_receipt || "",
-        t.gate_pass_sent_at ? "Yes" : "No",
-        t.created_at,
-      ]),
+      ["ticket_number", "buyer_name", "buyer_email", "buyer_phone", "amount", "status", "mpesa_receipt", "created_at"],
+      ...tickets.map((t) => [t.ticket_number || "", t.buyer_name, t.buyer_email, t.buyer_phone, t.amount, t.status, t.mpesa_receipt || "", t.created_at]),
     ];
     const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${event.slug}-${view === "successful" ? "successful-payments" : "all-tickets"}.csv`;
+    a.download = `${event.slug}-tickets.csv`;
     a.click();
   }
 
@@ -325,24 +255,16 @@ function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
-      <div className="bg-cream rounded-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
+      <div className="bg-cream rounded-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-5 border-b border-black/5">
           <div>
-            <h2 className="font-display text-xl">{event.title} — Tickets sold</h2>
-            <p className="text-xs text-ink/50">{tickets.length} total attempts · {paidCount} successful payments</p>
+            <h2 className="font-display text-xl">{event.title} — Tickets</h2>
+            <p className="text-xs text-ink/50">{tickets.length} total · {tickets.filter((t) => t.status === "paid").length} paid</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-black/5 rounded-full"><X className="size-4" /></button>
         </div>
 
-        <div className="flex items-center gap-2 p-4 border-b border-black/5 flex-wrap">
-          <div className="inline-flex rounded-full border border-black/10 p-1">
-            <button onClick={() => setView("successful")} className={`text-xs px-3 py-1.5 rounded-full ${view === "successful" ? "bg-gold-foil text-ink shadow-gold" : "text-ink/50"}`}>
-              Successful payments ({paidCount})
-            </button>
-            <button onClick={() => setView("all")} className={`text-xs px-3 py-1.5 rounded-full ${view === "all" ? "bg-gold-foil text-ink shadow-gold" : "text-ink/50"}`}>
-              All attempts ({tickets.length})
-            </button>
-          </div>
+        <div className="flex items-center gap-2 p-4 border-b border-black/5">
           <button onClick={toggleAll} className="text-xs px-3 py-1.5 rounded-full border border-black/10 hover:bg-black/5">
             {selected.size > 0 ? "Deselect all" : "Select all paid"}
           </button>
@@ -361,17 +283,14 @@ function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
             <thead className="text-left text-xs uppercase tracking-wider text-ink/45 border-b border-black/5 sticky top-0 bg-cream">
               <tr>
                 <th className="px-4 py-2 w-8"></th>
-                <th className="px-4 py-2">Gate pass #</th>
+                <th className="px-4 py-2">Ticket #</th>
                 <th className="px-4 py-2">Buyer</th>
                 <th className="px-4 py-2">Phone</th>
-                <th className="px-4 py-2">Amount</th>
-                <th className="px-4 py-2">M-Pesa receipt</th>
-                <th className="px-4 py-2">Gate pass received</th>
-                {view === "all" && <th className="px-4 py-2">Status</th>}
+                <th className="px-4 py-2">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
-              {visibleTickets.map((t) => (
+              {tickets.map((t) => (
                 <tr key={t.id}>
                   <td className="px-4 py-2">
                     {t.status === "paid" && (
@@ -381,30 +300,15 @@ function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
                   <td className="px-4 py-2 font-mono text-xs">{t.ticket_number || "—"}</td>
                   <td className="px-4 py-2">{t.buyer_name}<br /><span className="text-xs text-ink/45">{t.buyer_email}</span></td>
                   <td className="px-4 py-2 text-xs">{t.buyer_phone}</td>
-                  <td className="px-4 py-2 text-xs">KES {Number(t.amount).toLocaleString()}</td>
-                  <td className="px-4 py-2 font-mono text-xs">{t.mpesa_receipt || "—"}</td>
                   <td className="px-4 py-2">
-                    {t.status === "paid" ? (
-                      <span className={`text-xs px-2 py-1 rounded-full ${t.gate_pass_sent_at ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                        {t.gate_pass_sent_at ? `Received ${new Date(t.gate_pass_sent_at).toLocaleDateString()}` : "Not yet sent"}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-ink/30">—</span>
-                    )}
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      t.status === "paid" ? "bg-emerald-50 text-emerald-700" : t.status === "failed" ? "bg-red-50 text-red-600" : "bg-black/5 text-ink/50"
+                    }`}>{t.status}</span>
                   </td>
-                  {view === "all" && (
-                    <td className="px-4 py-2">
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        t.status === "paid" ? "bg-emerald-50 text-emerald-700" : t.status === "failed" ? "bg-red-50 text-red-600" : "bg-black/5 text-ink/50"
-                      }`}>{t.status}</span>
-                    </td>
-                  )}
                 </tr>
               ))}
-              {visibleTickets.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-ink/40">
-                  {view === "successful" ? "No successful payments yet." : "No tickets sold yet."}
-                </td></tr>
+              {tickets.length === 0 && (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-ink/40">No tickets sold yet.</td></tr>
               )}
             </tbody>
           </table>

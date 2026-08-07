@@ -35,13 +35,9 @@ export function MembershipCard({
         <div className="absolute inset-0 opacity-[0.06] bg-[radial-gradient(circle_at_top_right,white,transparent_60%)]" />
         <div className="relative flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded bg-white flex items-center justify-center overflow-hidden shrink-0">
-              <Image src="/logos/inter-uni-logo.webp" alt="" width={28} height={28} className="h-full w-full object-contain p-0.5" />
-            </div>
+            <Image src="/logos/inter-uni-logo.webp" alt="" width={30} height={30} className="h-7 w-7 rounded bg-white p-0.5" />
             <div className="h-6 w-px bg-gold/30" />
-            <div className="h-7 w-7 rounded bg-white flex items-center justify-center overflow-hidden shrink-0">
-              <Image src="/logos/ba-connect-logo.webp" alt="" width={28} height={28} className="h-full w-full object-contain p-0.5" />
-            </div>
+            <Image src="/logos/ba-connect-logo.webp" alt="" width={30} height={30} className="h-7 w-7 rounded" />
           </div>
           <span className="text-[9px] uppercase tracking-[0.2em] text-gold/70">Member ID</span>
         </div>

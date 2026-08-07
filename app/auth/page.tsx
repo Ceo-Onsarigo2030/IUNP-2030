@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+import { MinimalTopBar } from "@/components/minimal-topbar";
 import { MEMBER_CATEGORIES, type MemberCategory } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { Loader2, Mail, Lock, User, Building2, Accessibility, CheckCircle2, AlertCircle } from "lucide-react";
@@ -52,15 +53,6 @@ function AuthPageContent() {
 
     if (!signupForm.category) {
       setError("Please choose one category to continue.");
-      return;
-    }
-
-    // Whichever category is chosen, the specific name below it is mandatory —
-    // this used to only be enforced for "institution", so affiliation/organization
-    // and "other" sign-ups could proceed with that field left blank.
-    if (!signupForm.institutionName.trim()) {
-      const selected = MEMBER_CATEGORIES.find((c) => c.value === signupForm.category);
-      setError(`Please fill in "${selected?.fieldLabel ?? "the specific name"}" to continue.`);
       return;
     }
 
@@ -134,13 +126,15 @@ function AuthPageContent() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-140px)] surface-ink relative overflow-hidden flex items-center py-14">
-      <div className="absolute -top-40 -left-40 size-96 rounded-full bg-gold/10 blur-3xl animate-fade-up" />
-      <div className="absolute -bottom-40 -right-40 size-96 rounded-full bg-gold/10 blur-3xl animate-fade-up [animation-delay:200ms]" />
+    <>
+      <MinimalTopBar />
+      <div className="min-h-screen surface-ink relative overflow-hidden flex items-center py-14">
+        <div className="absolute -top-40 -left-40 size-96 rounded-full bg-gold/10 blur-3xl animate-fade-up" />
+        <div className="absolute -bottom-40 -right-40 size-96 rounded-full bg-gold/10 blur-3xl animate-fade-up [animation-delay:200ms]" />
 
-      <div className="container relative grid lg:grid-cols-2 gap-10 items-center">
-        <div className="hidden lg:block reveal">
-          <Image src="/logos/inter-uni-logo.webp" alt="" width={64} height={64} className="h-16 w-16 rounded-lg bg-white p-1 mb-6" />
+        <div className="container relative grid lg:grid-cols-2 gap-10 items-center">
+          <div className="hidden lg:block reveal">
+            <Image src="/logos/inter-uni-logo.webp" alt="" width={64} height={64} className="h-16 w-16 rounded-lg bg-white p-1 mb-6" />
           <h1 className="heading-display text-4xl xl:text-5xl text-cream leading-tight mb-5">
             Your campus.
             <br />
@@ -206,7 +200,7 @@ function AuthPageContent() {
                         name="category"
                         className="mt-1 accent-[#C9A227]"
                         checked={signupForm.category === c.value}
-                        onChange={() => setSignupForm((f) => ({ ...f, category: c.value, institutionName: "" }))}
+                        onChange={() => setSignupForm((f) => ({ ...f, category: c.value }))}
                       />
                       <span>
                         <span className="block text-sm font-medium text-ink">{c.label}</span>
@@ -217,23 +211,10 @@ function AuthPageContent() {
                 </div>
               </div>
 
-              {signupForm.category && (() => {
-                const selected = MEMBER_CATEGORIES.find((c) => c.value === signupForm.category)!;
-                return (
-                  <div>
-                    <p className="text-xs font-semibold text-ink/60 mb-2">
-                      {selected.fieldLabel} <span className="text-red-500">*</span>
-                    </p>
-                    <Field
-                      icon={Building2}
-                      placeholder={selected.fieldPlaceholder}
-                      value={signupForm.institutionName}
-                      onChange={(v) => setSignupForm((f) => ({ ...f, institutionName: v }))}
-                      required
-                    />
-                  </div>
-                );
-              })()}
+              {signupForm.category === "institution" && (
+                <Field icon={Building2} placeholder="Institution name" value={signupForm.institutionName}
+                  onChange={(v) => setSignupForm((f) => ({ ...f, institutionName: v }))} required />
+              )}
 
               <label className="flex items-center gap-2.5 text-sm text-ink/70 cursor-pointer">
                 <input
@@ -284,7 +265,8 @@ function AuthPageContent() {
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

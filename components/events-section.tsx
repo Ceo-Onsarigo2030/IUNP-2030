@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { MapPin, CalendarDays, ArrowRight } from "lucide-react";
+import { MapPin, CalendarDays, ArrowRight, Navigation } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { formatEventDate } from "@/lib/utils";
 import { TicketWidget } from "@/components/ticket-widget";
-import { EventMap } from "@/components/event-map";
 import { Button } from "@/components/ui/button";
 
 async function getEvents() {
@@ -21,7 +20,6 @@ async function getEvents() {
         .from("event_ticket_tiers")
         .select("*")
         .eq("event_id", current.id)
-        .eq("is_active", true)
         .order("sort_order", { ascending: true });
       tiers = data || [];
     }
@@ -63,7 +61,11 @@ export async function EventsSection() {
                   <span className="flex items-center gap-2"><CalendarDays className="size-4 text-gold-deep" /> {formatEventDate(current.starts_at)}</span>
                   <span className="flex items-center gap-2"><MapPin className="size-4 text-gold-deep" /> {current.venue}</span>
                 </div>
-                <EventMap venue={current.venue} mapUrl={current.map_url} />
+                {current.map_url && (
+                  <a href={current.map_url} target="_blank" rel="noreferrer" className="btn-outline-gold !text-ink !border-ink/20 hover:!bg-ink hover:!text-cream !py-2.5 !px-5 text-sm inline-flex">
+                    <Navigation className="size-3.5" /> Get directions
+                  </a>
+                )}
               </div>
             </div>
             <TicketWidget eventId={current.id} tiers={tiers} />

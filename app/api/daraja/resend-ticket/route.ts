@@ -2,9 +2,13 @@ import { NextResponse } from "next/server";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { generateGatePassPdf } from "@/lib/gate-pass";
 import { sendGatePassEmail } from "@/lib/resend";
+import { enforceCors } from "@/lib/cors";
 import * as Sentry from "@sentry/nextjs";
 
 export async function POST(request: Request) {
+  const corsBlock = enforceCors(request);
+  if (corsBlock) return corsBlock;
+
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const { data: role } = await supabase.from("user_roles").select("role").eq("user_id", user?.id || "").eq("role", "admin").maybeSingle();
