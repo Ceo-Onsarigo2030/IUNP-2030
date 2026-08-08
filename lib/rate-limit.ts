@@ -24,6 +24,7 @@ export const otpRequestPhoneLimiter = makeLimiter(3, "15 m");
 export const otpRequestIpLimiter = makeLimiter(10, "15 m");
 export const otpVerifyLimiter = makeLimiter(8, "15 m");
 export const articleLikeLimiter = makeLimiter(60, "10 m");
+export const statusPollLimiter = makeLimiter(30, "1 m");
 
 export function clientIp(request: Request) {
   const fwd = request.headers.get("x-forwarded-for");
@@ -39,4 +40,4 @@ export async function enforceRateLimit(limiter: Ratelimit | null, key: string) {
     status: 429,
     headers: { "Content-Type": "application/json", "Retry-After": String(retryAfter) },
   });
-}
+    }
