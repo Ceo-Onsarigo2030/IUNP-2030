@@ -18,6 +18,7 @@ export async function POST(request: Request) {
 
   const checkoutRequestId = stkCallback.CheckoutRequestID;
   const resultCode = stkCallback.ResultCode;
+  const resultDesc = stkCallback.ResultDesc;
   const supabase = createServiceRoleClient();
 
   // Only transition tickets that are still pending — blocks replayed/duplicate callbacks
@@ -32,6 +33,13 @@ export async function POST(request: Request) {
   if (!ticket) return NextResponse.json({ ResultCode: 0, ResultDesc: "No matching pending ticket" });
 
   if (resultCode !== 0) {
+    // Logged so the actual Safaricom reason (insufficient funds, user cancelled,
+    // wrong PIN, or an account-level rejection like an inactive STK Push product
+    // or mismatched passkey) is visible in Sentry instead of only "failed" in the DB.
+    Sentry.captureMessage("Daraja STK push not completed", {
+      level: "info",
+      extra: { ticketId: ticket.id, checkoutRequestId, resultCode, resultDesc },
+    });
     await supabase.from("tickets").update({ status: "failed" }).eq("id", ticket.id);
     return NextResponse.json({ ResultCode: 0, ResultDesc: "Marked failed" });
   }
