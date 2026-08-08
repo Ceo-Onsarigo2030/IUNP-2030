@@ -60,15 +60,3 @@ export async function sendCampaignEmail({ to, subject, html }: { to: string[]; s
     });
   }
 }
-
-export async function sendNewsletterWelcomeEmail({ to }: { to: string }) {
-  return getResendClient().emails.send({
-    from: process.env.RESEND_FROM_EMAIL || "UniNexus Connect Platform <news@uninexusconnectplatform.co.ke>",
-    to,
-    subject: "Welcome to the UniNexus Connect newsletter",
-    html: emailShell(`
-      <h1 style="font-size:22px; margin:0 0 16px;">You're subscribed 🎉</h1>
-      <p>Thanks for joining the UniNexus Connect Platform newsletter. You'll get updates on inter-university events, programs, and opportunities straight to your inbox.</p>
-    `),
-  });
-}
