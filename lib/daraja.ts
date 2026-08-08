@@ -81,7 +81,7 @@ export async function initiateStkPush({
       BusinessShortCode: shortcode,
       Password: password,
       Timestamp: ts,
-      TransactionType: "CustomerPayBillOnline",
+      TransactionType: "CustomerBuyGoodsOnline",
       Amount: Math.max(1, Math.round(amount)),
       PartyA: phone,
       PartyB: shortcode,
