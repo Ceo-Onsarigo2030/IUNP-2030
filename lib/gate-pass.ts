@@ -10,6 +10,17 @@ const CREAM_DIM = rgb(0.7, 0.68, 0.63);
 const CREAM_FAINT = rgb(0.5, 0.48, 0.45);
 const HAIRLINE = rgb(0.2, 0.19, 0.17);
 
+/**
+ * Wraps text to fit maxWidth, returning one string per line. pdf-lib's built-in
+ * drawText(maxWidth:) wraps automatically but always advances by a fixed line
+ * height from the SAME start position — it doesn't tell the caller how many
+ * lines it produced, so anything drawn after it (venue, date) was positioned as
+ * if the title were always one line. A long title ("UNINEXUS CONNECT GALA
+ * AWARDS 2026") wraps to two lines in practice, and its second line landed
+ * directly on top of the venue text below it — the exact overlap reported.
+ * Wrapping manually means every element below can be positioned based on how
+ * much vertical space the title actually took.
+ */
 function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
   const words = text.split(" ");
   const lines: string[] = [];
@@ -36,7 +47,7 @@ export async function generateGatePassPdf({
 
   const pdf = await PDFDocument.create();
   const W = 420;
-  const H = 700;
+  const H = 680;
   const MARGIN = 40;
   const CONTENT_WIDTH = W - MARGIN * 2;
 
@@ -45,51 +56,47 @@ export async function generateGatePassPdf({
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const qrImage = await pdf.embedPng(qrBytes);
 
+  // Both organization logos, embedded from their PNG copies (pdf-lib can't embed
+  // webp) — previously the gate pass header was plain text with no logos at all.
+  // Each sits in its own light box, same fix applied to the membership card:
+  // without a light background, a mostly-dark logo image effectively disappears
+  // against this dark card.
   const interUniLogoBytes = readFileSync(path.join(process.cwd(), "public/logos/inter-uni-logo.png"));
   const baConnectLogoBytes = readFileSync(path.join(process.cwd(), "public/logos/ba-connect-logo.png"));
   const interUniLogo = await pdf.embedPng(interUniLogoBytes);
   const baConnectLogo = await pdf.embedPng(baConnectLogoBytes);
 
-  // Background + top accent bar
   page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: INK });
   page.drawRectangle({ x: 0, y: H - 6, width: W, height: 6, color: GOLD });
-  // Thin frame for a premium card feel
-  page.drawRectangle({ x: 10, y: 10, width: W - 20, height: H - 26, borderColor: HAIRLINE, borderWidth: 0.75, color: undefined });
 
-  let y = H - 44;
+  let y = H - 46;
 
-  // --- Header row: logos beside title, vertically centered together ---
-  const logoSize = 30;
-  const logoGap = 6;
-  const logoPad = 4;
-  const logoTopY = y - logoSize;
-
-  page.drawRectangle({ x: MARGIN, y: logoTopY, width: logoSize, height: logoSize, color: CREAM });
+  const logoBoxSize = 34;
+  const logoPad = 5;
+  page.drawRectangle({ x: MARGIN, y: y - logoBoxSize + 6, width: logoBoxSize, height: logoBoxSize, color: CREAM });
   page.drawImage(interUniLogo, {
-    x: MARGIN + logoPad, y: logoTopY + logoPad,
-    width: logoSize - logoPad * 2, height: logoSize - logoPad * 2,
+    x: MARGIN + logoPad, y: y - logoBoxSize + 6 + logoPad,
+    width: logoBoxSize - logoPad * 2, height: logoBoxSize - logoPad * 2,
   });
-
-  const logo2X = MARGIN + logoSize + logoGap;
-  page.drawRectangle({ x: logo2X, y: logoTopY, width: logoSize, height: logoSize, color: CREAM });
+  page.drawRectangle({ x: MARGIN + logoBoxSize + 8, y: y - logoBoxSize + 6, width: logoBoxSize, height: logoBoxSize, color: CREAM });
   page.drawImage(baConnectLogo, {
-    x: logo2X + logoPad, y: logoTopY + logoPad,
-    width: logoSize - logoPad * 2, height: logoSize - logoPad * 2,
+    x: MARGIN + logoBoxSize + 8 + logoPad, y: y - logoBoxSize + 6 + logoPad,
+    width: logoBoxSize - logoPad * 2, height: logoBoxSize - logoPad * 2,
   });
 
-  const titleX = logo2X + logoSize + 14;
-  const titleSize = 14;
-  const titleBaselineY = logoTopY + (logoSize - titleSize) / 2 + 3;
-  page.drawText("UNINEXUS CONNECT", { x: titleX, y: titleBaselineY, size: titleSize, font: bold, color: GOLD });
+  y -= logoBoxSize + 20;
 
-  y = logoTopY - 20;
+  page.drawText("UNINEXUS CONNECT", { x: MARGIN, y, size: 19, font: bold, color: GOLD });
+  y -= 22;
   page.drawText("GATE PASS", { x: MARGIN, y, size: 10, font: regular, color: CREAM_DIM });
-  y -= 26;
+  y -= 30;
 
+  // Thin divider under the header before the event details start.
   page.drawLine({ start: { x: MARGIN, y }, end: { x: W - MARGIN, y }, thickness: 0.75, color: HAIRLINE });
   y -= 32;
 
-  // --- Event details ---
+  // Event title — wrapped manually so every following line is placed based on
+  // how much space it actually needs, never guessed.
   const titleLines = wrapText(eventTitle, bold, 17, CONTENT_WIDTH);
   for (const line of titleLines) {
     page.drawText(line, { x: MARGIN, y, size: 17, font: bold, color: CREAM });
@@ -109,16 +116,18 @@ export async function generateGatePassPdf({
   });
   y -= 40;
 
-  // --- QR code card ---
+  // QR sits in its own soft card so it stands out against the dark background
+  // rather than floating directly on it.
   const qrSize = 220;
   const qrCardPad = 16;
   const qrCardSize = qrSize + qrCardPad * 2;
   const qrCardX = (W - qrCardSize) / 2;
   const qrCardY = y - qrCardSize;
-  page.drawRectangle({ x: qrCardX, y: qrCardY, width: qrCardSize, height: qrCardSize, color: CREAM });
+  page.drawRectangle({ x: qrCardX, y: qrCardY, width: qrCardSize, height: qrCardSize, color: rgb(0.98, 0.97, 0.94) });
   page.drawImage(qrImage, { x: qrCardX + qrCardPad, y: qrCardY + qrCardPad, width: qrSize, height: qrSize });
   y = qrCardY - 34;
 
+  // Ticket number, centered, as the clearest single thing on the pass besides the QR.
   const ticketWidth = bold.widthOfTextAtSize(ticketNumber, 15);
   page.drawText(ticketNumber, { x: (W - ticketWidth) / 2, y, size: 15, font: bold, color: GOLD });
   y -= 22;
@@ -131,7 +140,6 @@ export async function generateGatePassPdf({
   page.drawLine({ start: { x: MARGIN, y }, end: { x: W - MARGIN, y }, thickness: 0.75, color: HAIRLINE });
   y -= 26;
 
-  // --- Celebrate line, bold and centered ---
   const celebrate = "Let's Celebrate Greatness Together!";
   const celebrateWidth = bold.widthOfTextAtSize(celebrate, 12.5);
   page.drawText(celebrate, { x: (W - celebrateWidth) / 2, y, size: 12.5, font: bold, color: GOLD });
@@ -148,4 +156,4 @@ export async function generateGatePassPdf({
   }
 
   return pdf.save();
-    }
+}
