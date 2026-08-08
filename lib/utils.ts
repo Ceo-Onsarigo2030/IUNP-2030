@@ -15,6 +15,10 @@ export function generateMembershipId(sequence: number) {
   return `UniNexus-${String(sequence).padStart(3, "0")}`;
 }
 
+export function buildMapEmbedUrl(venue: string) {
+  return `https://www.google.com/maps?q=${encodeURIComponent(venue)}&output=embed`;
+}
+
 export function generateTicketNumber() {
   const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
   const time = Date.now().toString(36).slice(-4).toUpperCase();
