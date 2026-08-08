@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Image from "next/image";
 import { Download, Loader2 } from "lucide-react";
 
 export function MembershipCard({
@@ -14,8 +13,18 @@ export function MembershipCard({
     if (!cardRef.current) return;
     setDownloading(true);
     try {
+      const images = Array.from(cardRef.current.querySelectorAll("img"));
+      await Promise.all(
+        images.map((img) =>
+          img.complete ? img.decode().catch(() => {}) : new Promise<void>((resolve) => {
+            img.addEventListener("load", () => resolve(), { once: true });
+            img.addEventListener("error", () => resolve(), { once: true });
+          })
+        )
+      );
+
       const html2canvas = (await import("html2canvas")).default;
-      const canvas = await html2canvas(cardRef.current, { backgroundColor: null, scale: 3 });
+      const canvas = await html2canvas(cardRef.current, { backgroundColor: null, scale: 3, useCORS: true });
       const link = document.createElement("a");
       link.download = `${membershipId}-uninexus-id.png`;
       link.href = canvas.toDataURL("image/png");
@@ -35,9 +44,15 @@ export function MembershipCard({
         <div className="absolute inset-0 opacity-[0.06] bg-[radial-gradient(circle_at_top_right,white,transparent_60%)]" />
         <div className="relative flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Image src="/logos/inter-uni-logo.webp" alt="" width={30} height={30} className="h-7 w-7 rounded bg-white p-0.5" />
+            <div className="h-7 w-7 rounded bg-white flex items-center justify-center overflow-hidden shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logos/inter-uni-logo.webp" alt="" width={28} height={28} className="h-full w-full object-contain p-0.5" />
+            </div>
             <div className="h-6 w-px bg-gold/30" />
-            <Image src="/logos/ba-connect-logo.webp" alt="" width={30} height={30} className="h-7 w-7 rounded" />
+            <div className="h-7 w-7 rounded bg-white flex items-center justify-center overflow-hidden shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logos/ba-connect-logo.webp" alt="" width={28} height={28} className="h-full w-full object-contain p-0.5" />
+            </div>
           </div>
           <span className="text-[9px] uppercase tracking-[0.2em] text-gold/70">Member ID</span>
         </div>
