@@ -24,8 +24,8 @@ export async function getDarajaToken() {
     return cachedToken.token;
   }
 
-  const key = (process.env.DARAJA_CONSUMER_KEY || "").trim();
-  const secret = (process.env.DARAJA_CONSUMER_SECRET || "").trim();
+  const key = (process.env.MPESA_CONSUMER_KEY || "").trim();
+  const secret = (process.env.MPESA_CONSUMER_SECRET || "").trim();
   const auth = Buffer.from(`${key}:${secret}`).toString("base64");
 
   const res = await fetch(`${BASE_URL()}/oauth/v1/generate?grant_type=client_credentials`, {
@@ -49,7 +49,7 @@ export async function getDarajaToken() {
       },
     });
     // Logged with real detail above (visible in Sentry/Vercel logs) — the most common
-    // causes are a wrong DARAJA_CONSUMER_KEY/SECRET, a quoted/whitespace-padded env var
+    // causes are a wrong MPESA_CONSUMER_KEY/SECRET, a quoted/whitespace-padded env var
     // value in Vercel, or a DARAJA_ENV/credential mismatch (sandbox credentials used
     // with DARAJA_ENV=production, or vice versa).
     throw new Error("Failed to authenticate with Daraja.");
@@ -71,19 +71,20 @@ export async function initiateStkPush({
 }: { phone: string; amount: number; accountRef: string; description: string }) {
   const token = await getDarajaToken();
   const ts = timestamp();
-  const password = Buffer.from(`${process.env.DARAJA_SHORTCODE}${process.env.DARAJA_PASSKEY}${ts}`).toString("base64");
+  const shortcode = process.env.MPESA_SHORTCODE;
+  const password = Buffer.from(`${shortcode}${process.env.MPESA_PASSKEY}${ts}`).toString("base64");
 
   const res = await fetch(`${BASE_URL()}/mpesa/stkpush/v1/processrequest`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      BusinessShortCode: process.env.DARAJA_SHORTCODE,
+      BusinessShortCode: shortcode,
       Password: password,
       Timestamp: ts,
       TransactionType: "CustomerPayBillOnline",
       Amount: Math.max(1, Math.round(amount)),
       PartyA: phone,
-      PartyB: process.env.DARAJA_SHORTCODE,
+      PartyB: shortcode,
       PhoneNumber: phone,
       CallBackURL: process.env.DARAJA_CALLBACK_URL,
       AccountReference: accountRef.slice(0, 12),
@@ -100,4 +101,4 @@ export async function initiateStkPush({
     throw new Error(data.errorMessage || data.ResponseDescription || "STK push request failed.");
   }
   return { checkoutRequestId: data.CheckoutRequestID as string, merchantRequestId: data.MerchantRequestID as string };
-    }
+}
