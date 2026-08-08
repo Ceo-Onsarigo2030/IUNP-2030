@@ -24,7 +24,10 @@ export async function getDarajaToken() {
     return cachedToken.token;
   }
 
-  const auth = Buffer.from(`${process.env.DARAJA_CONSUMER_KEY}:${process.env.DARAJA_CONSUMER_SECRET}`).toString("base64");
+  const key = (process.env.DARAJA_CONSUMER_KEY || "").trim();
+  const secret = (process.env.DARAJA_CONSUMER_SECRET || "").trim();
+  const auth = Buffer.from(`${key}:${secret}`).toString("base64");
+
   const res = await fetch(`${BASE_URL()}/oauth/v1/generate?grant_type=client_credentials`, {
     headers: { Authorization: `Basic ${auth}` },
     cache: "no-store",
@@ -34,11 +37,21 @@ export async function getDarajaToken() {
     const bodyText = await res.text().catch(() => "");
     Sentry.captureMessage("Daraja OAuth failed", {
       level: "error",
-      extra: { status: res.status, body: bodyText, env: process.env.DARAJA_ENV },
+      extra: {
+        status: res.status,
+        body: bodyText || "(empty response body)",
+        env: process.env.DARAJA_ENV,
+        baseUrl: BASE_URL(),
+        keyLength: key.length,
+        keyLooksQuoted: key.startsWith('"') || key.endsWith('"'),
+        secretLength: secret.length,
+        secretLooksQuoted: secret.startsWith('"') || secret.endsWith('"'),
+      },
     });
     // Logged with real detail above (visible in Sentry/Vercel logs) — the most common
-    // causes are a wrong DARAJA_CONSUMER_KEY/SECRET or a DARAJA_ENV/credential mismatch
-    // (sandbox credentials used with DARAJA_ENV=production, or vice versa).
+    // causes are a wrong DARAJA_CONSUMER_KEY/SECRET, a quoted/whitespace-padded env var
+    // value in Vercel, or a DARAJA_ENV/credential mismatch (sandbox credentials used
+    // with DARAJA_ENV=production, or vice versa).
     throw new Error("Failed to authenticate with Daraja.");
   }
 
@@ -87,4 +100,4 @@ export async function initiateStkPush({
     throw new Error(data.errorMessage || data.ResponseDescription || "STK push request failed.");
   }
   return { checkoutRequestId: data.CheckoutRequestID as string, merchantRequestId: data.MerchantRequestID as string };
-}
+    }
