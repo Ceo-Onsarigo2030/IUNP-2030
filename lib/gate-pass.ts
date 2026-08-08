@@ -36,7 +36,7 @@ export async function generateGatePassPdf({
 
   const pdf = await PDFDocument.create();
   const W = 420;
-  const H = 680;
+  const H = 700;
   const MARGIN = 40;
   const CONTENT_WIDTH = W - MARGIN * 2;
 
@@ -50,34 +50,46 @@ export async function generateGatePassPdf({
   const interUniLogo = await pdf.embedPng(interUniLogoBytes);
   const baConnectLogo = await pdf.embedPng(baConnectLogoBytes);
 
+  // Background + top accent bar
   page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: INK });
   page.drawRectangle({ x: 0, y: H - 6, width: W, height: 6, color: GOLD });
+  // Thin frame for a premium card feel
+  page.drawRectangle({ x: 10, y: 10, width: W - 20, height: H - 26, borderColor: HAIRLINE, borderWidth: 0.75, color: undefined });
 
-  let y = H - 46;
+  let y = H - 44;
 
-  const logoBoxSize = 34;
-  const logoPad = 5;
-  page.drawRectangle({ x: MARGIN, y: y - logoBoxSize + 6, width: logoBoxSize, height: logoBoxSize, color: CREAM });
+  // --- Header row: logos beside title, vertically centered together ---
+  const logoSize = 30;
+  const logoGap = 6;
+  const logoPad = 4;
+  const logoTopY = y - logoSize;
+
+  page.drawRectangle({ x: MARGIN, y: logoTopY, width: logoSize, height: logoSize, color: CREAM });
   page.drawImage(interUniLogo, {
-    x: MARGIN + logoPad, y: y - logoBoxSize + 6 + logoPad,
-    width: logoBoxSize - logoPad * 2, height: logoBoxSize - logoPad * 2,
+    x: MARGIN + logoPad, y: logoTopY + logoPad,
+    width: logoSize - logoPad * 2, height: logoSize - logoPad * 2,
   });
-  page.drawRectangle({ x: MARGIN + logoBoxSize + 8, y: y - logoBoxSize + 6, width: logoBoxSize, height: logoBoxSize, color: CREAM });
+
+  const logo2X = MARGIN + logoSize + logoGap;
+  page.drawRectangle({ x: logo2X, y: logoTopY, width: logoSize, height: logoSize, color: CREAM });
   page.drawImage(baConnectLogo, {
-    x: MARGIN + logoBoxSize + 8 + logoPad, y: y - logoBoxSize + 6 + logoPad,
-    width: logoBoxSize - logoPad * 2, height: logoBoxSize - logoPad * 2,
+    x: logo2X + logoPad, y: logoTopY + logoPad,
+    width: logoSize - logoPad * 2, height: logoSize - logoPad * 2,
   });
 
-  y -= logoBoxSize + 20;
+  const titleX = logo2X + logoSize + 14;
+  const titleSize = 14;
+  const titleBaselineY = logoTopY + (logoSize - titleSize) / 2 + 3;
+  page.drawText("UNINEXUS CONNECT", { x: titleX, y: titleBaselineY, size: titleSize, font: bold, color: GOLD });
 
-  page.drawText("UNINEXUS CONNECT", { x: MARGIN, y, size: 19, font: bold, color: GOLD });
-  y -= 22;
+  y = logoTopY - 20;
   page.drawText("GATE PASS", { x: MARGIN, y, size: 10, font: regular, color: CREAM_DIM });
-  y -= 30;
+  y -= 26;
 
   page.drawLine({ start: { x: MARGIN, y }, end: { x: W - MARGIN, y }, thickness: 0.75, color: HAIRLINE });
   y -= 32;
 
+  // --- Event details ---
   const titleLines = wrapText(eventTitle, bold, 17, CONTENT_WIDTH);
   for (const line of titleLines) {
     page.drawText(line, { x: MARGIN, y, size: 17, font: bold, color: CREAM });
@@ -97,12 +109,13 @@ export async function generateGatePassPdf({
   });
   y -= 40;
 
+  // --- QR code card ---
   const qrSize = 220;
   const qrCardPad = 16;
   const qrCardSize = qrSize + qrCardPad * 2;
   const qrCardX = (W - qrCardSize) / 2;
   const qrCardY = y - qrCardSize;
-  page.drawRectangle({ x: qrCardX, y: qrCardY, width: qrCardSize, height: qrCardSize, color: rgb(0.98, 0.97, 0.94) });
+  page.drawRectangle({ x: qrCardX, y: qrCardY, width: qrCardSize, height: qrCardSize, color: CREAM });
   page.drawImage(qrImage, { x: qrCardX + qrCardPad, y: qrCardY + qrCardPad, width: qrSize, height: qrSize });
   y = qrCardY - 34;
 
@@ -118,6 +131,7 @@ export async function generateGatePassPdf({
   page.drawLine({ start: { x: MARGIN, y }, end: { x: W - MARGIN, y }, thickness: 0.75, color: HAIRLINE });
   y -= 26;
 
+  // --- Celebrate line, bold and centered ---
   const celebrate = "Let's Celebrate Greatness Together!";
   const celebrateWidth = bold.widthOfTextAtSize(celebrate, 12.5);
   page.drawText(celebrate, { x: (W - celebrateWidth) / 2, y, size: 12.5, font: bold, color: GOLD });
@@ -134,4 +148,4 @@ export async function generateGatePassPdf({
   }
 
   return pdf.save();
-}
+    }
