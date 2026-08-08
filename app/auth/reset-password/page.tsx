@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { MinimalTopBar } from "@/components/minimal-topbar";
 import { Loader2, Lock, CheckCircle2, AlertCircle } from "lucide-react";
 
 export default function ResetPasswordPage() {
@@ -30,9 +29,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <>
-      <MinimalTopBar />
-      <div className="min-h-screen surface-ink flex items-center py-14">
+    <div className="min-h-[calc(100vh-140px)] surface-ink flex items-center py-14">
       <div className="container max-w-md">
         <div className="card-elegant p-8">
           <h1 className="heading-display text-2xl mb-2">Set a new password</h1>
@@ -66,7 +63,6 @@ export default function ResetPasswordPage() {
           )}
         </div>
       </div>
-      </div>
-    </>
+    </div>
   );
 }
