@@ -1,4 +1,12 @@
 import * as Sentry from "@sentry/nextjs";
+import { Redis } from "@upstash/redis";
+
+const redis =
+  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+    ? new Redis({ url: process.env.UPSTASH_REDIS_REST_URL, token: process.env.UPSTASH_REDIS_REST_TOKEN })
+    : null;
+
+const TOKEN_CACHE_KEY = "daraja:oauth-token";
 
 const BASE_URL = () =>
   process.env.DARAJA_ENV === "production"
@@ -44,15 +52,31 @@ function requiredEnvAny(names: string[]) {
 // Safaricom's OAuth token is valid for ~3600 seconds. Previously every single STK
 // push call fetched a brand new token first — meaning every ticket buyer waited
 // through TWO sequential Safaricom round-trips (get a token, then start the STK
-// push) before their phone even prompted for a PIN. Caching the token for its
-// actual lifetime (with a safety margin) cuts that to one round-trip for every
-// purchase except roughly the first one per hour, which is where the "loads a lot
-// before the PIN" delay was actually coming from.
+// push) before their phone even prompted for a PIN. Caching the token cuts that
+// to one round-trip for most purchases.
+//
+// Two layers: an in-memory cache (fast, but only shared within one warm Vercel
+// instance) and Redis (shared across EVERY instance). Under a burst of
+// concurrent buyers, Vercel spins up multiple separate instances in parallel —
+// each starts with an empty in-memory cache, so without Redis a concurrent rush
+// could still cause several redundant OAuth calls instead of ideally one.
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
 export async function getDarajaToken() {
   if (cachedToken && cachedToken.expiresAt > Date.now()) {
     return cachedToken.token;
+  }
+
+  if (redis) {
+    try {
+      const shared = await redis.get<{ token: string; expiresAt: number }>(TOKEN_CACHE_KEY);
+      if (shared && shared.expiresAt > Date.now()) {
+        cachedToken = shared;
+        return shared.token;
+      }
+    } catch {
+      // Redis unreachable — fall through and fetch a fresh token directly.
+    }
   }
 
   const consumerKey = requiredEnvAny(["DARAJA_CONSUMER_KEY", "MPESA_CONSUMER_KEY"]);
@@ -77,7 +101,17 @@ export async function getDarajaToken() {
 
   const data = await res.json();
   const expiresInSeconds = Number(data.expires_in) || 3600;
-  cachedToken = { token: data.access_token, expiresAt: Date.now() + (expiresInSeconds - 120) * 1000 };
+  const expiresAt = Date.now() + (expiresInSeconds - 120) * 1000;
+  cachedToken = { token: data.access_token, expiresAt };
+
+  if (redis) {
+    try {
+      await redis.set(TOKEN_CACHE_KEY, cachedToken, { exat: Math.floor(expiresAt / 1000) });
+    } catch {
+      // Best-effort — the in-memory cache above still works for this instance.
+    }
+  }
+
   return cachedToken.token;
 }
 

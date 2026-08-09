@@ -11,7 +11,7 @@ export const SOCIALS = {
   uninexus: {
     instagram: "https://www.instagram.com/uninexus_connect?igsh=MWswaWlpcHJvYW01Nw==",
     facebook: "https://www.facebook.com/share/1RQqh4SqcJ/",
-    tiktok: "https://tiktok.com/@uninexus_connect",
+    tiktok: "https://tiktok.com/@uninexus_connectplatform",
     email: "uninexusplatformke@gmail.com",
   },
   baConnect: {
