@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { MapPin, CalendarDays } from "lucide-react";
+import Link from "next/link";
+import { MapPin, CalendarDays, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { formatEventDate } from "@/lib/utils";
 import { TicketWidget } from "@/components/ticket-widget";
@@ -89,6 +90,14 @@ export default async function ProgramsPage() {
         ) : (
           <div className="card-elegant p-10 text-center text-ink/50">No upcoming events published yet.</div>
         )}
+
+        <div className="mt-14 card-elegant p-8 text-center max-w-xl mx-auto">
+          <h3 className="font-display text-xl mb-2">Not a member yet?</h3>
+          <p className="text-sm text-ink/60 mb-4">Join UniNexus Connect to follow every event, category and update across Kenyan universities.</p>
+          <Link href="/auth" className="btn-gold inline-flex !py-3 !px-6">
+            Join UniNexus <ArrowRight className="size-4" />
+          </Link>
+        </div>
       </section>
     </div>
   );

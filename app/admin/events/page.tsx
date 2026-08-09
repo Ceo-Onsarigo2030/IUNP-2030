@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Loader2, Plus, Star, Ticket as TicketIcon, Trash2, Download, Send, X } from "lucide-react";
+import { Loader2, Plus, Star, Ticket as TicketIcon, Trash2, Download, Send, X, Link2 } from "lucide-react";
 
 const EMPTY = {
   title: "", slug: "", description: "", venue: "", starts_at: "", status: "upcoming",
@@ -61,6 +61,12 @@ export default function AdminEventsPage() {
     load();
   }
 
+  function copyEventLink(slug: string) {
+    const url = `${location.origin}/programs/${slug}`;
+    navigator.clipboard.writeText(url);
+    alert(`Copied ticket link for this event:\n${url}`);
+  }
+
   return (
     <div className="p-8 sm:p-10">
       <h1 className="heading-display text-3xl mb-8">Events &amp; Ticketing</h1>
@@ -100,6 +106,9 @@ export default function AdminEventsPage() {
                 <p className="text-xs uppercase tracking-wider text-gold-deep">{e.status} · {e.tickets?.[0]?.count ?? 0} tickets</p>
               </div>
               <div className="flex flex-col gap-2 shrink-0">
+                <button onClick={() => copyEventLink(e.slug)} className="text-xs px-3 py-1.5 rounded-full border border-gold/30 text-gold-deep hover:bg-gold/10 flex items-center gap-1">
+                  <Link2 className="size-3" /> Copy ticket link
+                </button>
                 <button onClick={() => setTicketsEvent(e)} className="text-xs px-3 py-1.5 rounded-full border border-gold/30 text-gold-deep hover:bg-gold/10 flex items-center gap-1">
                   <TicketIcon className="size-3" /> Tickets
                 </button>
@@ -197,7 +206,15 @@ function TiersPanel({ event, onClose }: { event: any; onClose: () => void }) {
       <div className="bg-cream rounded-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-5 border-b border-black/5">
           <h2 className="font-display text-xl">{event.title} — Ticket Tiers</h2>
-          <button onClick={onClose} className="p-2 hover:bg-black/5 rounded-full"><X className="size-4" /></button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { navigator.clipboard.writeText(`${location.origin}/programs/${event.slug}`); alert("Ticket link copied!"); }}
+              className="text-xs px-3 py-1.5 rounded-full border border-gold/30 text-gold-deep hover:bg-gold/10 flex items-center gap-1"
+            >
+              <Link2 className="size-3" /> Copy link
+            </button>
+            <button onClick={onClose} className="p-2 hover:bg-black/5 rounded-full"><X className="size-4" /></button>
+          </div>
         </div>
         <div className="overflow-y-auto flex-1 p-5 space-y-5">
           {error && <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">{error}</div>}
