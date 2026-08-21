@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Loader2, Plus, Star, Ticket as TicketIcon, Trash2, Download, Send, X, Link2 } from "lucide-react";
+import { Loader2, Plus, Star, Ticket as TicketIcon, Trash2, Download, Send, X, Link2, ImagePlus } from "lucide-react";
 
 const EMPTY = {
   title: "", slug: "", description: "", venue: "", starts_at: "", status: "upcoming",
-  ticket_price: "", ticket_currency: "KES", capacity: "", map_url: "",
+  ticket_price: "", ticket_currency: "KES", capacity: "", map_url: "", cover_image_url: "",
 };
 
 export default function AdminEventsPage() {
@@ -67,6 +67,22 @@ export default function AdminEventsPage() {
     alert(`Copied ticket link for this event:\n${url}`);
   }
 
+  async function uploadCoverImage(file: File) {
+    if (!editingId) return;
+    const supabase = createClient();
+    const ext = file.name.split(".").pop();
+    const path = `${editingId}/${crypto.randomUUID()}.${ext}`;
+    const { error: uploadErr } = await supabase.storage.from("event-media").upload(path, file, { upsert: true });
+    if (uploadErr) {
+      alert(`Couldn't upload image: ${uploadErr.message}`);
+      return;
+    }
+    const { data: pub } = supabase.storage.from("event-media").getPublicUrl(path);
+    await supabase.from("events").update({ cover_image_url: pub.publicUrl }).eq("id", editingId);
+    setForm((f: any) => ({ ...f, cover_image_url: pub.publicUrl }));
+    load();
+  }
+
   return (
     <div className="p-8 sm:p-10">
       <h1 className="heading-display text-3xl mb-8">Events &amp; Ticketing</h1>
@@ -78,6 +94,32 @@ export default function AdminEventsPage() {
           <textarea required rows={3} placeholder="Description" value={form.description} onChange={(e) => setForm((f: any) => ({ ...f, description: e.target.value }))} className="w-full rounded-lg border border-black/10 px-3 py-2.5 text-sm resize-none" />
           <input required placeholder="Venue" value={form.venue} onChange={(e) => setForm((f: any) => ({ ...f, venue: e.target.value }))} className="w-full rounded-lg border border-black/10 px-3 py-2.5 text-sm" />
           <input placeholder="Google Maps link (paste from Share > Copy link)" value={form.map_url} onChange={(e) => setForm((f: any) => ({ ...f, map_url: e.target.value }))} className="w-full rounded-lg border border-black/10 px-3 py-2.5 text-sm" />
+
+          {editingId ? (
+            <div>
+              <label className="text-xs text-ink/50 block mb-1.5">Event logo / cover image (optional)</label>
+              <div className="flex items-center gap-3">
+                <div className="size-14 rounded-lg bg-black/5 border border-black/10 overflow-hidden shrink-0 flex items-center justify-center">
+                  {form.cover_image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={form.cover_image_url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <ImagePlus className="size-5 text-ink/25" />
+                  )}
+                </div>
+                <label className="text-xs px-3 py-2 rounded-lg border border-gold/30 text-gold-deep hover:bg-gold/10 cursor-pointer">
+                  {form.cover_image_url ? "Replace image" : "Upload image"}
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (file) uploadCoverImage(file);
+                  }} />
+                </label>
+              </div>
+            </div>
+          ) : (
+            <p className="text-[11px] text-ink/40">Save this event first, then click Edit on it to add a logo/cover image.</p>
+          )}
           <input required type="datetime-local" value={form.starts_at} onChange={(e) => setForm((f: any) => ({ ...f, starts_at: e.target.value }))} className="w-full rounded-lg border border-black/10 px-3 py-2.5 text-sm" />
           <div className="grid grid-cols-2 gap-3">
             <input placeholder="Ticket price (KES)" type="number" value={form.ticket_price} onChange={(e) => setForm((f: any) => ({ ...f, ticket_price: e.target.value }))} className="w-full rounded-lg border border-black/10 px-3 py-2.5 text-sm" />
@@ -97,13 +139,19 @@ export default function AdminEventsPage() {
         <div className="space-y-3">
           {events.map((e) => (
             <div key={e.id} className="card-elegant p-5 flex items-start justify-between gap-4">
-              <div>
+              <div className="flex items-start gap-3">
+                {e.cover_image_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={e.cover_image_url} alt="" className="size-14 rounded-lg object-cover shrink-0" />
+                )}
+                <div>
                 <div className="flex items-center gap-2 mb-1">
                   {e.status === "current" && <Star className="size-3.5 text-gold fill-gold" />}
                   <h3 className="font-display text-lg">{e.title}</h3>
                 </div>
                 <p className="text-xs text-ink/50 mb-1">{e.venue} · {new Date(e.starts_at).toLocaleString()}</p>
                 <p className="text-xs uppercase tracking-wider text-gold-deep">{e.status} · {e.tickets?.[0]?.count ?? 0} tickets</p>
+                </div>
               </div>
               <div className="flex flex-col gap-2 shrink-0">
                 <button onClick={() => copyEventLink(e.slug)} className="text-xs px-3 py-1.5 rounded-full border border-gold/30 text-gold-deep hover:bg-gold/10 flex items-center gap-1">

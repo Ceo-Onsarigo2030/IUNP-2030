@@ -56,6 +56,10 @@ export default async function ProgramsPage() {
           <div className="grid lg:grid-cols-[1.2fr_1fr] gap-8 items-start mb-20">
             <div className="card-elegant overflow-hidden">
               <div className="h-2 bg-gold-foil" />
+              {current.cover_image_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={current.cover_image_url} alt={current.title} className="w-full aspect-[16/9] object-cover" />
+              )}
               <div className="p-7 sm:p-9">
                 <h2 className="heading-display text-3xl mb-4">{current.title}</h2>
                 <p className="text-ink/65 leading-relaxed mb-5">{current.description}</p>
@@ -76,7 +80,12 @@ export default async function ProgramsPage() {
         {upcoming.length > 0 ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {upcoming.map((e: any) => (
-              <div key={e.id} className="card-elegant p-6">
+              <div key={e.id} className="card-elegant overflow-hidden">
+                {e.cover_image_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={e.cover_image_url} alt={e.title} className="w-full aspect-[16/9] object-cover" />
+                )}
+                <div className="p-6">
                 <h3 className="font-display text-xl mb-2">{e.title}</h3>
                 <p className="text-sm text-ink/60 leading-relaxed mb-4 line-clamp-3">{e.description}</p>
                 <div className="flex flex-col gap-1.5 text-xs text-ink/50 mb-3">
@@ -84,6 +93,7 @@ export default async function ProgramsPage() {
                   <span className="flex items-center gap-2"><MapPin className="size-3.5 text-gold-deep" /> {e.venue}</span>
                 </div>
                 <EventMap venue={e.venue} mapUrl={e.map_url} />
+                </div>
               </div>
             ))}
           </div>

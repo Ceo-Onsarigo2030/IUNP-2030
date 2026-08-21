@@ -55,6 +55,10 @@ export async function EventsSection() {
           <div className="grid lg:grid-cols-[1.2fr_1fr] gap-8 items-start">
             <div className="card-elegant overflow-hidden reveal">
               <div className="h-2 bg-gold-foil" />
+              {current.cover_image_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={current.cover_image_url} alt={current.title} className="w-full aspect-[16/9] object-cover" />
+              )}
               <div className="p-7 sm:p-9">
                 <span className="eyebrow !text-gold-deep">Current event · Pinned</span>
                 <h3 className="heading-display text-2xl sm:text-3xl mt-3 mb-4">{current.title}</h3>
