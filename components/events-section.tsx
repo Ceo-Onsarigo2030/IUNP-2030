@@ -57,7 +57,7 @@ export async function EventsSection() {
               <div className="h-2 bg-gold-foil" />
               {current.cover_image_url && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={current.cover_image_url} alt={current.title} className="w-full aspect-[16/9] object-cover" />
+                <img src={current.cover_image_url} alt={current.title} className="w-full max-h-72 object-contain bg-ink/5" />
               )}
               <div className="p-7 sm:p-9">
                 <span className="eyebrow !text-gold-deep">Current event · Pinned</span>

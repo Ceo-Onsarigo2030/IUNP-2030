@@ -14,8 +14,8 @@ const POLL_MS = 15_000;
 // used to return a different (wrong) count on every device/session — signed-out
 // visitors got 0, a signed-in member got ~1, only an admin ever saw the real total.
 // The RPC bypasses that and always returns the true platform-wide counts.
-function useLiveStats() {
-  const [stats, setStats] = useState<Stats>({ members: 0, disability: 0, institutions: 0, events: 0 });
+function useLiveStats(initialStats: Stats) {
+  const [stats, setStats] = useState<Stats>(initialStats);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -103,8 +103,8 @@ const CARDS = [
   { key: "events", label: "Programs & Events", icon: CalendarCheck },
 ] as const;
 
-export function LiveStats() {
-  const stats = useLiveStats();
+export function LiveStats({ initialStats }: { initialStats: Stats }) {
+  const stats = useLiveStats(initialStats);
 
   return (
     <section className="bg-cream py-16 sm:py-20">

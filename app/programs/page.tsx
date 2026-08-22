@@ -58,7 +58,7 @@ export default async function ProgramsPage() {
               <div className="h-2 bg-gold-foil" />
               {current.cover_image_url && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={current.cover_image_url} alt={current.title} className="w-full aspect-[16/9] object-cover" />
+                <img src={current.cover_image_url} alt={current.title} className="w-full max-h-72 object-contain bg-ink/5" />
               )}
               <div className="p-7 sm:p-9">
                 <h2 className="heading-display text-3xl mb-4">{current.title}</h2>
@@ -83,7 +83,7 @@ export default async function ProgramsPage() {
               <div key={e.id} className="card-elegant overflow-hidden">
                 {e.cover_image_url && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={e.cover_image_url} alt={e.title} className="w-full aspect-[16/9] object-cover" />
+                  <img src={e.cover_image_url} alt={e.title} className="w-full max-h-52 object-contain bg-ink/5" />
                 )}
                 <div className="p-6">
                 <h3 className="font-display text-xl mb-2">{e.title}</h3>

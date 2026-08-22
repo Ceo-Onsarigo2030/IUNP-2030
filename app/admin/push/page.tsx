@@ -12,13 +12,19 @@ export default function AdminPushPage() {
     e.preventDefault();
     setSending(true);
     setResult(null);
-    const res = await fetch("/api/push/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    const data = await res.json();
-    setResult(res.ok ? `Sent to ${data.sent} subscribers.` : data.error);
+    try {
+      const res = await fetch("/api/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) setResult(data.error || "Sending failed for an unknown reason — check Vercel logs.");
+      else if (data.note) setResult(data.note);
+      else setResult(`Sent to ${data.sent} subscriber(s).${data.failed ? ` ${data.failed} failed.` : ""}`);
+    } catch {
+      setResult("Couldn't reach the server. Check your connection and try again.");
+    }
     setSending(false);
   }
 

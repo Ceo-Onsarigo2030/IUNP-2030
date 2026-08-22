@@ -56,7 +56,7 @@ export default async function EventTicketPage({ params }: { params: { slug: stri
             <div className="h-2 bg-gold-foil" />
             {event.cover_image_url && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={event.cover_image_url} alt={event.title} className="w-full aspect-[16/9] object-cover" />
+              <img src={event.cover_image_url} alt={event.title} className="w-full max-h-72 object-contain bg-ink/5" />
             )}
             <div className="p-7 sm:p-9">
               <p className="text-ink/65 leading-relaxed mb-5">{event.description}</p>
