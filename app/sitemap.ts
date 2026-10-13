@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { createClient } from "@/lib/supabase/server";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://uninexusconnect.org";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://uninexusconnectplatform.co.ke";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
@@ -12,6 +12,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/gala`, changeFrequency: "weekly", priority: 0.7 },
     { url: `${SITE_URL}/feedback`, changeFrequency: "weekly", priority: 0.5 },
     { url: `${SITE_URL}/auth`, changeFrequency: "monthly", priority: 0.4 },
+    { url: `${SITE_URL}/privacy`, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${SITE_URL}/terms`, changeFrequency: "yearly", priority: 0.3 },
   ];
 
   try {

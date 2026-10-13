@@ -6,7 +6,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { MEMBER_CATEGORIES, type MemberCategory } from "@/lib/constants";
-import { cn } from "@/lib/utils";
+import { cn, safeRedirect } from "@/lib/utils";
+import { Turnstile, TURNSTILE_SITE_KEY } from "@/components/turnstile";
 import { Loader2, Mail, Lock, User, Building2, Accessibility, CheckCircle2, AlertCircle } from "lucide-react";
 
 type Mode = "signup" | "login";
@@ -45,6 +46,22 @@ function AuthPageContent() {
     hasDisability: false,
   });
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [agree, setAgree] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
+
+  // Turnstile tokens are single-use — always request a fresh one after an attempt.
+  function refreshCaptcha() {
+    setCaptchaToken(null);
+    setCaptchaReset((n) => n + 1);
+  }
+  function captchaMissing() {
+    if (TURNSTILE_SITE_KEY && !captchaToken) {
+      setError("Please complete the security check below.");
+      return true;
+    }
+    return false;
+  }
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -64,13 +81,20 @@ function AuthPageContent() {
       return;
     }
 
+    if (!agree) {
+      setError("Please accept the Terms of Use and Privacy Policy to continue.");
+      return;
+    }
+    if (captchaMissing()) return;
+
     setLoading(true);
     try {
       const supabase = createClient();
       const { data, error: signErr } = await supabase.auth.signUp({
-        email: signupForm.email,
+        email: signupForm.email.trim(),
         password: signupForm.password,
         options: {
+          captchaToken: captchaToken ?? undefined,
           data: {
             full_name: signupForm.fullName,
             category: signupForm.category,
@@ -84,11 +108,12 @@ function AuthPageContent() {
       if (data.user && !data.session) {
         setSuccess("Check your email to confirm your account, then log in.");
       } else {
-        router.push(searchParams.get("redirect") || "/dashboard");
+        router.push(safeRedirect(searchParams.get("redirect")));
       }
     } catch (err: any) {
       setError(mapAuthError(err.message));
     } finally {
+      refreshCaptcha();
       setLoading(false);
     }
   }
@@ -96,30 +121,45 @@ function AuthPageContent() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (captchaMissing()) return;
     setLoading(true);
     try {
       const supabase = createClient();
-      const { data, error: loginErr } = await supabase.auth.signInWithPassword(loginForm);
+      const { data, error: loginErr } = await supabase.auth.signInWithPassword({
+        email: loginForm.email.trim(),
+        password: loginForm.password,
+        options: { captchaToken: captchaToken ?? undefined },
+      });
       if (loginErr) throw loginErr;
 
       const explicitRedirect = searchParams.get("redirect");
-      if (explicitRedirect) {
-        router.push(explicitRedirect);
-      } else if (data.user) {
-        const { data: role } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", data.user.id)
-          .eq("role", "admin")
-          .maybeSingle();
-        router.push(role ? "/admin" : "/dashboard");
+      let target = safeRedirect(explicitRedirect, "");
+      if (!target) {
+        target = "/dashboard";
+        if (data.user) {
+          const { data: role } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", data.user.id)
+            .eq("role", "admin")
+            .maybeSingle();
+          if (role) target = "/admin";
+        }
+      }
+
+      // Two-step verification: anyone who has enrolled an authenticator app (admins) is
+      // sent to enter their 6-digit code before continuing.
+      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (aal && aal.nextLevel === "aal2" && aal.currentLevel !== "aal2") {
+        router.push(`/auth/mfa?redirect=${encodeURIComponent(target)}`);
       } else {
-        router.push("/dashboard");
+        router.push(target);
       }
       router.refresh();
     } catch (err: any) {
       setError(mapAuthError(err.message));
     } finally {
+      refreshCaptcha();
       setLoading(false);
     }
   }
@@ -159,7 +199,7 @@ function AuthPageContent() {
             {(["signup", "login"] as Mode[]).map((m) => (
               <button
                 key={m}
-                onClick={() => { setMode(m); setError(null); setSuccess(null); }}
+                onClick={() => { setMode(m); setError(null); setSuccess(null); setCaptchaToken(null); }}
                 className={cn(
                   "flex-1 rounded-full py-2.5 text-sm font-semibold transition-colors",
                   mode === m ? "bg-gold-foil text-ink shadow-gold" : "text-ink/50"
@@ -246,6 +286,22 @@ function AuthPageContent() {
                 I identify as a person with a disability
               </label>
 
+              <label className="flex items-start gap-2.5 text-xs text-ink/65 cursor-pointer leading-relaxed">
+                <input
+                  type="checkbox"
+                  className="size-4 mt-0.5 accent-[#C9A227] shrink-0"
+                  checked={agree}
+                  onChange={(e) => setAgree(e.target.checked)}
+                />
+                <span>
+                  I agree to the <Link href="/terms" target="_blank" className="text-gold-deep underline">Terms of Use</Link> and{" "}
+                  <Link href="/privacy" target="_blank" className="text-gold-deep underline">Privacy Policy</Link>, including how my
+                  details (and the optional disability field) are used.
+                </span>
+              </label>
+
+              <Turnstile key="signup" onToken={setCaptchaToken} resetSignal={captchaReset} />
+
               <button type="submit" disabled={loading} className="btn-gold w-full !py-3.5 disabled:opacity-60">
                 {loading ? <Loader2 className="size-4 animate-spin" /> : "Create your Membership ID"}
               </button>
@@ -256,7 +312,8 @@ function AuthPageContent() {
               </button>
               <p className="text-[11px] text-ink/40 text-center leading-relaxed">
                 One sign-up per person — via this form or Google, not both. Registering creates your unique
-                UniNexus Membership ID.
+                UniNexus Membership ID. By continuing with Google you also accept our{" "}
+                <Link href="/terms" className="underline">Terms</Link> and <Link href="/privacy" className="underline">Privacy Policy</Link>.
               </p>
             </form>
           ) : (
@@ -270,6 +327,7 @@ function AuthPageContent() {
                   Forgot password?
                 </Link>
               </div>
+              <Turnstile key="login" onToken={setCaptchaToken} resetSignal={captchaReset} />
               <button type="submit" disabled={loading} className="btn-gold w-full !py-3.5 disabled:opacity-60">
                 {loading ? <Loader2 className="size-4 animate-spin" /> : "Log in"}
               </button>
@@ -316,5 +374,11 @@ function Divider() {
 function mapAuthError(message: string) {
   if (message?.includes("already registered")) return "This email is already registered — try logging in instead.";
   if (message?.includes("Invalid login")) return "Incorrect email or password.";
+  if (message?.toLowerCase().includes("captcha")) return "The security check didn't pass — please try again.";
+  if (message?.includes("Database error saving new user"))
+    return "We couldn't finish creating your account just now. Please try again in a minute — if it keeps happening, email uninexusplatformke@gmail.com.";
+  if (message?.toLowerCase().includes("rate limit") || message?.toLowerCase().includes("too many"))
+    return "Too many attempts — please wait a few minutes and try again.";
+  if (message?.includes("Email not confirmed")) return "Please confirm your email first — check your inbox for the link.";
   return message || "Something went wrong. Please try again.";
 }

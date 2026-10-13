@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   },
   description:
     "The Inter-Universities Nexus Platform — a flagship initiative of B.A Connect Organization uniting universities, colleges, tertiary institutions, youth organizations, associations and alumni across Kenya and beyond.",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://uninexusconnect.org"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://uninexusconnectplatform.co.ke"),
   openGraph: {
     title: "UniNexus Connect",
     description: "Bridging Campus. Building Futures.",

@@ -3,7 +3,8 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  // If CRON_SECRET is missing, `Bearer undefined` would otherwise match — refuse outright.
+  if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 

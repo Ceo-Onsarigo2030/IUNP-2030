@@ -35,7 +35,11 @@ export default function AdminCampaignsPage() {
       setResult({
         id,
         ok: res.ok,
-        message: res.ok ? `Sent to ${data.sent} member(s).` : data.error || "Sending failed for an unknown reason — check Vercel logs.",
+        message: res.ok
+          ? data.done
+            ? `Done — sent to ${data.sent} recipient(s).`
+            : `Sent ${data.sent} of ${data.total}. Press "Continue sending" to send the rest.`
+          : data.error || "Sending failed for an unknown reason — check Vercel logs.",
       });
     } catch {
       // Network failure or a non-JSON error page — still surface SOMETHING rather
@@ -69,12 +73,12 @@ export default function AdminCampaignsPage() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h3 className="font-display text-lg mb-1">{c.subject}</h3>
-                  <p className="text-xs text-ink/50">{c.status === "sent" ? `Sent ${new Date(c.sent_at).toLocaleString()}` : "Draft"}</p>
+                  <p className="text-xs text-ink/50">{c.status === "sent" ? `Sent ${new Date(c.sent_at).toLocaleString()}` : c.status === "sending" ? `Sending — ${c.sent_count || 0} sent so far` : "Draft"}</p>
                 </div>
                 <div className="flex flex-col gap-2 shrink-0">
                   {c.status !== "sent" && (
                     <button onClick={() => send(c.id)} disabled={sending === c.id} className="text-xs px-3 py-1.5 rounded-full bg-gold-foil text-ink shadow-gold flex items-center gap-1 disabled:opacity-60">
-                      {sending === c.id ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />} Send to all
+                      {sending === c.id ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />} {c.status === "sending" ? "Continue sending" : "Send to all"}
                     </button>
                   )}
                   <button onClick={() => remove(c.id)} className="text-xs px-3 py-1.5 rounded-full border border-red-200 text-red-600 hover:bg-red-50 flex items-center gap-1"><Trash2 className="size-3" /> Delete</button>

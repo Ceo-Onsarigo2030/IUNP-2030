@@ -3,19 +3,26 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Loader2, Mail, CheckCircle2 } from "lucide-react";
+import { Turnstile, TURNSTILE_SITE_KEY } from "@/components/turnstile";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (TURNSTILE_SITE_KEY && !captchaToken) return;
     setLoading(true);
     const supabase = createClient();
     await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${location.origin}/auth/reset-password`,
+      captchaToken: captchaToken ?? undefined,
     });
+    setCaptchaToken(null);
+    setCaptchaReset((n) => n + 1);
     // Always show success — never reveal whether an email is registered.
     setDone(true);
     setLoading(false);
@@ -48,7 +55,8 @@ export default function ForgotPasswordPage() {
                   className="w-full rounded-lg border border-black/10 pl-10 pr-4 py-3 text-sm focus:border-gold outline-none"
                 />
               </div>
-              <button type="submit" disabled={loading} className="btn-gold w-full !py-3.5 disabled:opacity-60">
+              <Turnstile onToken={setCaptchaToken} resetSignal={captchaReset} />
+              <button type="submit" disabled={loading || (!!TURNSTILE_SITE_KEY && !captchaToken)} className="btn-gold w-full !py-3.5 disabled:opacity-60">
                 {loading ? <Loader2 className="size-4 animate-spin" /> : "Send reset link"}
               </button>
             </form>

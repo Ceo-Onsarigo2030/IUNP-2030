@@ -1,36 +1,28 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Users, Accessibility, Building2, CalendarCheck } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 
 type Stats = { members: number; disability: number; institutions: number; events: number };
 
-const POLL_MS = 15_000;
+const POLL_MS = 60_000;
 
-// IMPORTANT: this reads through the `get_public_stats()` RPC (security definer,
-// defined in supabase/migrations/0001_init.sql), never the `profiles` table directly.
-// `profiles` is RLS-locked to "own row or admin", so querying it from the browser
-// used to return a different (wrong) count on every device/session — signed-out
-// visitors got 0, a signed-in member got ~1, only an admin ever saw the real total.
-// The RPC bypasses that and always returns the true platform-wide counts.
+// Reads /api/stats (edge-cached for 60s, backed by the get_public_stats() RPC — profiles is
+// RLS-locked, so the browser must never count it directly). Polls only while the tab is
+// visible, once a minute, so thousands of open homepages don't hammer the database.
 function useLiveStats(initialStats: Stats) {
   const [stats, setStats] = useState<Stats>(initialStats);
-  const mountedRef = useRef(true);
 
   useEffect(() => {
-    mountedRef.current = true;
-    let supabaseClient: ReturnType<typeof createClient> | null = null;
-    let channel: ReturnType<ReturnType<typeof createClient>["channel"]> | null = null;
-    let pollId: ReturnType<typeof setInterval> | null = null;
+    let mounted = true;
 
     async function load() {
+      if (document.visibilityState !== "visible") return;
       try {
-        const supabase = supabaseClient!;
-        const { data, error } = await supabase.rpc("get_public_stats");
-        if (error || !data) return;
-        const row = Array.isArray(data) ? data[0] : data;
-        if (!row || !mountedRef.current) return;
+        const res = await fetch("/api/stats");
+        if (!res.ok) return;
+        const row = await res.json();
+        if (!mounted) return;
         setStats({
           members: Number(row.members) || 0,
           disability: Number(row.disability) || 0,
@@ -38,35 +30,16 @@ function useLiveStats(initialStats: Stats) {
           events: Number(row.events) || 0,
         });
       } catch {
-        // Supabase not reachable yet (e.g. env vars not configured) — leave stats as-is.
+        // Offline / temporarily unreachable — keep showing the last known numbers.
       }
     }
 
-    try {
-      supabaseClient = createClient();
-
-      load();
-
-      // Poll on an interval so numbers stay current for every visitor without
-      // needing to refresh the page — this is the primary update mechanism.
-      pollId = setInterval(load, POLL_MS);
-
-      // Realtime is a nice-to-have on top of polling: if it's wired up (replication
-      // enabled for these tables) it makes updates feel instant; if not, polling
-      // above still keeps things correct within POLL_MS.
-      channel = supabaseClient
-        .channel("live-stats")
-        .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, load)
-        .on("postgres_changes", { event: "*", schema: "public", table: "events" }, load)
-        .subscribe();
-    } catch {
-      // createClient() itself threw (missing Supabase env vars) — stats stay at zero.
-    }
-
+    const pollId = setInterval(load, POLL_MS);
+    document.addEventListener("visibilitychange", load);
     return () => {
-      mountedRef.current = false;
-      if (pollId) clearInterval(pollId);
-      if (supabaseClient && channel) supabaseClient.removeChannel(channel);
+      mounted = false;
+      clearInterval(pollId);
+      document.removeEventListener("visibilitychange", load);
     };
   }, []);
 

@@ -5,11 +5,13 @@ import { generateOtpCode, hashValue, normalizePhone } from "@/lib/otp";
 import { sendOtpSms } from "@/lib/sms";
 import { otpRequestPhoneLimiter, otpRequestIpLimiter, enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { enforceCors } from "@/lib/cors";
+import { verifyTurnstile } from "@/lib/turnstile";
 import * as Sentry from "@sentry/nextjs";
 
 const schema = z.object({
   categoryId: z.string().uuid(),
   phone: z.string().min(9),
+  captchaToken: z.string().nullish(),
 });
 
 export async function POST(request: Request) {
@@ -17,7 +19,12 @@ export async function POST(request: Request) {
   if (corsBlock) return corsBlock;
 
   try {
-    const { categoryId, phone: rawPhone } = schema.parse(await request.json());
+    const { categoryId, phone: rawPhone, captchaToken } = schema.parse(await request.json());
+
+    // Each code costs an SMS — require a passed bot check before spending money.
+    if (!(await verifyTurnstile(captchaToken, clientIp(request)))) {
+      return NextResponse.json({ error: "The security check didn't pass. Please try again." }, { status: 400 });
+    }
     const phone = normalizePhone(rawPhone);
     if (!/^254(7|1)\d{8}$/.test(phone)) {
       return NextResponse.json({ error: "Enter a valid Safaricom/Kenyan number, e.g. 0712345678." }, { status: 400 });

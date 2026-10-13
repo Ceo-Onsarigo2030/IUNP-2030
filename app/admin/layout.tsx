@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  LayoutDashboard, CalendarDays, Newspaper, MessageSquare, Mail, BellRing, Users, Settings, Trophy, Menu, X, Landmark,
+  LayoutDashboard, CalendarDays, Newspaper, MessageSquare, Mail, BellRing, Users, Settings, Trophy, Menu, X, Landmark, ShieldCheck,
 } from "lucide-react";
 
 const LINKS = [
@@ -19,6 +19,7 @@ const LINKS = [
   { href: "/admin/members", label: "Members", icon: Users },
   { href: "/admin/institutions", label: "Institution Mapping", icon: Landmark },
   { href: "/admin/settings", label: "Site Settings", icon: Settings },
+  { href: "/admin/security", label: "Security & 2-Step", icon: ShieldCheck },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

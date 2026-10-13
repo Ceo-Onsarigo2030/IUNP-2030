@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CheckCircle2, Loader2, AlertCircle, Smartphone, ShieldCheck } from "lucide-react";
+import { Turnstile, TURNSTILE_SITE_KEY } from "@/components/turnstile";
 
 type Nominee = {
   id: string;
@@ -19,6 +20,8 @@ export function VoteWidget({ categoryId, nominees }: { categoryId: string; nomin
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
 
   function choose(n: Nominee) {
     setSelected(n);
@@ -28,13 +31,17 @@ export function VoteWidget({ categoryId, nominees }: { categoryId: string; nomin
 
   async function sendCode(e: React.FormEvent) {
     e.preventDefault();
+    if (TURNSTILE_SITE_KEY && !captchaToken) {
+      setError("Please complete the security check.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/gala/otp/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ categoryId, phone }),
+        body: JSON.stringify({ categoryId, phone, captchaToken }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Couldn't send a code.");
@@ -42,6 +49,8 @@ export function VoteWidget({ categoryId, nominees }: { categoryId: string; nomin
     } catch (err: any) {
       setError(err.message);
     } finally {
+      setCaptchaToken(null);
+      setCaptchaReset((n) => n + 1);
       setLoading(false);
     }
   }
@@ -104,6 +113,7 @@ export function VoteWidget({ categoryId, nominees }: { categoryId: string; nomin
                 className="w-full rounded-lg border border-black/10 pl-10 pr-4 py-3 text-sm focus:border-gold outline-none"
               />
             </div>
+            <Turnstile onToken={setCaptchaToken} resetSignal={captchaReset} />
             <button type="submit" disabled={loading} className="btn-gold w-full !py-3.5 disabled:opacity-60">
               {loading ? <Loader2 className="size-4 animate-spin" /> : "Send verification code"}
             </button>

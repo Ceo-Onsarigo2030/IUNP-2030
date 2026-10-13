@@ -29,6 +29,7 @@ export async function POST(request: Request) {
 
   const metadata: any[] = stkCallback.CallbackMetadata?.Item || [];
   const receipt = metadata.find((i) => i.Name === "MpesaReceiptNumber")?.Value || null;
+  const paidAmount = metadata.find((i) => i.Name === "Amount")?.Value;
   const ticketNumber = generateTicketNumber();
 
   // Safaricom is documented to occasionally redeliver the same callback. The previous
@@ -39,15 +40,33 @@ export async function POST(request: Request) {
   // claim atomic: Postgres only lets one concurrent request's WHERE status='pending'
   // actually match and return a row — a second, redelivered callback for the same
   // ticket updates zero rows and is safely ignored below.
-  const { data: claimed } = await supabase
+  // The amount Safaricom reports as paid must equal the ticket price — otherwise the ticket
+  // stays pending (and is flagged in Sentry) instead of being issued for a short payment.
+  let claimQuery = supabase
     .from("tickets")
     .update({ status: "paid", mpesa_receipt: receipt, ticket_number: ticketNumber })
     .eq("checkout_request_id", checkoutRequestId)
-    .eq("status", "pending")
+    .eq("status", "pending");
+  if (paidAmount != null) claimQuery = claimQuery.eq("amount", Number(paidAmount));
+
+  const { data: claimed } = await claimQuery
     .select("*, events(*), event_ticket_tiers(name)")
     .maybeSingle();
 
-  if (!claimed) return NextResponse.json({ ResultCode: 0, ResultDesc: "No matching pending ticket" });
+  if (!claimed) {
+    if (paidAmount != null) {
+      const { data: pending } = await supabase
+        .from("tickets")
+        .select("id, amount")
+        .eq("checkout_request_id", checkoutRequestId)
+        .eq("status", "pending")
+        .maybeSingle();
+      if (pending) {
+        Sentry.captureMessage(`M-Pesa amount mismatch: paid ${paidAmount}, expected ${pending.amount} (ticket ${pending.id})`, "error");
+      }
+    }
+    return NextResponse.json({ ResultCode: 0, ResultDesc: "No matching pending ticket" });
+  }
   const ticket = claimed;
 
   try {
