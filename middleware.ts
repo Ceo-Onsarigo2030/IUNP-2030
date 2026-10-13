@@ -75,6 +75,30 @@ export async function middleware(request: NextRequest) {
       url.pathname = "/dashboard";
       return NextResponse.redirect(url);
     }
+
+    // Two-step verification (TOTP authenticator app) for admins.
+    //  - enrolled but not yet verified this session  -> /auth/mfa
+    //  - not enrolled yet                            -> /admin/security (the only page reachable until set up)
+    // Emergency switch: set ADMIN_MFA_ENFORCE=false in Vercel.
+    if (process.env.ADMIN_MFA_ENFORCE !== "false") {
+      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (aal) {
+        if (aal.nextLevel === "aal2" && aal.currentLevel !== "aal2") {
+          const url = request.nextUrl.clone();
+          url.pathname = "/auth/mfa";
+          url.search = "";
+          url.searchParams.set("redirect", path);
+          return NextResponse.redirect(url);
+        }
+        if (aal.nextLevel === "aal1" && path !== "/admin/security") {
+          const url = request.nextUrl.clone();
+          url.pathname = "/admin/security";
+          url.search = "";
+          url.searchParams.set("setup", "1");
+          return NextResponse.redirect(url);
+        }
+      }
+    }
   }
 
   return response;

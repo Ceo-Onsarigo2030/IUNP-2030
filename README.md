@@ -43,7 +43,7 @@ The site will 404 on data-driven pages until Step 2 is done — that's expected.
    - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
    - `anon public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `service_role` key → `SUPABASE_SERVICE_ROLE_KEY` (never expose this to the browser — it's server-only)
-3. Open the **SQL Editor**, paste the entire contents of `supabase/migrations/0001_init.sql`, and run it. It's idempotent, so re-running it later after edits is safe.
+3. Open the **SQL Editor** and run every file in `supabase/migrations/` **in numeric order, 0001 → 0011** (each is safe to re-run). `0012_admin_two_step_enforcement.sql` is run **last, and only after every admin has set up two-step verification** (Step 13).
 4. Go to **Authentication → Providers → Google**, enable it, and add these to your Google Cloud OAuth client's authorized redirect URIs:
    - `https://<your-project-ref>.supabase.co/auth/v1/callback`
    - `https://<your-vercel-domain>/auth/callback` (add this once you know your Vercel URL, after Step 9)
@@ -58,7 +58,7 @@ Admins never use the sign-up form — they're created directly in Supabase and o
    ```sql
    insert into public.user_roles (user_id, role) values ('<uuid>', 'admin');
    insert into public.profiles (id, full_name, email, category, signup_method)
-   values ('<uuid>', 'Admin Name', 'admin@uninexusconnect.org', 'other', 'form');
+   values ('<uuid>', 'Admin Name', 'admin@uninexusconnectplatform.co.ke', 'other', 'form');
    ```
 4. That admin now logs in at `/auth` with those exact credentials and lands in `/admin`.
 
@@ -72,7 +72,7 @@ Admins never use the sign-up form — they're created directly in Supabase and o
 
 1. Create an account at resend.com, add and verify your sending domain (DNS records they give you — SPF/DKIM).
 2. Create an API key → `RESEND_API_KEY`.
-3. Set `RESEND_FROM_EMAIL` to an address on your verified domain, e.g. `UniNexus Connect <tickets@uninexusconnect.org>`.
+3. Set `RESEND_FROM_EMAIL` to an address on your verified domain, e.g. `UniNexus Connect <tickets@uninexusconnectplatform.co.ke>`.
 4. Until the domain is verified, Resend only delivers to your own account email — fine for testing, not for launch.
 
 ### Step 6 — Set up M-Pesa Daraja
@@ -150,9 +150,51 @@ git push -u origin main
 
 ## What's deliberately left for you to configure per your own risk appetite
 
-- Storage bucket policies if/when you add file uploads (event cover images, avatars) — the schema has `cover_image_url` columns ready, but no Storage bucket is created yet.
+- Storage bucket policies for avatars (event cover, article and gala media buckets are created by the migrations).
 - A more granular admin role hierarchy (e.g. "editor" vs "super admin") — currently a single `admin` role.
 - Multi-day event support — the cron currently treats `starts_at` as the end of the event too; add an `ends_at` column if events run longer than a day.
+
+---
+
+## Step 12 — CAPTCHA (Cloudflare Turnstile) on sign-up, login, password reset and voting codes
+
+1. Go to **dash.cloudflare.com → Turnstile → Add widget**. Add your domain (`uninexusconnectplatform.co.ke`, plus `www.` if asked). Mode: *Managed*.
+2. Copy the **Site key** and **Secret key**.
+3. In **Vercel → Project → Settings → Environment Variables** add:
+   - `NEXT_PUBLIC_TURNSTILE_SITE_KEY` = site key
+   - `TURNSTILE_SECRET_KEY` = secret key (mark as *Sensitive*)
+   Then **redeploy**. The widget now appears on the sign-up, login, forgot-password and Gala "send code" forms.
+4. **Only after that deploy is live:** Supabase → **Authentication → Attack Protection → Enable CAPTCHA protection**, choose **Turnstile**, paste the **Secret key**, save. (Doing this *before* step 3 would block every login, because the forms wouldn't be sending a token yet.)
+5. Test: open `/auth` in a private window, confirm the check appears and sign-up/login work.
+
+If the keys are not set, the site simply skips the CAPTCHA, so deploys never break.
+
+## Step 13 — Two-step verification for admins
+
+1. Deploy this version. Log in as the admin → you are taken straight to **Admin → Security & 2-Step**.
+2. Install an authenticator app on your phone (Google/Microsoft Authenticator or Authy), scan the QR code, type the 6-digit code, press **Confirm**.
+3. Log out and log in again — you will now be asked for a 6-digit code every time. The admin panel *and* the admin-only API actions (email campaigns, push notifications) refuse anyone who has not completed the code.
+4. Repeat for every admin account. **Save the setup key shown under the QR code somewhere safe** in case the phone is lost (or have a second admin who can reset you).
+5. When **all** admins are enrolled, run `supabase/migrations/0012_admin_two_step_enforcement.sql` in the Supabase SQL Editor. This makes the *database itself* demand the code for admin powers.
+6. Lost phone / locked out: Supabase → **Authentication → Users →** the admin → remove the MFA factor, then enrol again. Emergency only: set `ADMIN_MFA_ENFORCE=false` in Vercel and redeploy, fix, then remove it.
+
+Also turn on two-step verification on your **Supabase, Vercel, GitHub, Cloudflare and Resend** accounts — they hold the keys to the whole platform.
+
+## Step 14 — Backups and recovery
+
+- Supabase **free** projects have **no automatic backups**. For a platform with thousands of members, upgrade to **Pro** (daily backups, 7-day retention) and consider the **Point-in-Time Recovery** add-on.
+- Check: Supabase → **Database → Backups**.
+- Do a **restore test** at least once (restore into a new project) so you know recovery works before you need it.
+- Keep the repo in a **private** GitHub repository, and never commit `.env` files.
+
+## Scale notes (many members)
+
+- Public live-stats come from `/api/stats`, cached at the edge for 60 s — the database is not hit per visitor.
+- Admin Members list is paged and searched on the server (the old version stopped at 1000 rows).
+- Email campaigns include members **and** active newsletter subscribers, de-duplicated, and send in resumable batches (press **Continue sending** if a big list needs more than one go).
+- Push notifications page through all subscribers and send in parallel batches.
+- Indexes were added for member search, tickets and newsletter look-ups (migration 0011).
+- On Vercel **Pro**, raise `maxDuration` and hourly cron if you need faster campaign delivery.
 
 ---
 
