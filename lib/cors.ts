@@ -22,8 +22,7 @@ const STATIC_ALLOWED = [
  * the site's own pages get rejected here with "Origin not allowed.", which stopped the STK
  * push before Safaricom ever got a chance to prompt the buyer for their M-Pesa PIN. This
  * version always trusts the request's own host (a POST from the site to its own API route is
- * same-origin in every real scenario) and any *.vercel.app preview deployment of this project,
- * on top of the configured origins, so a missing/incorrect env var can no longer block real
+ * same-origin in every real scenario) (which also covers this project's own preview deployments), on top of the configured origins, so a missing/incorrect env var can no longer block real
  * purchases.
  */
 export function enforceCors(request: Request) {
@@ -39,13 +38,6 @@ export function enforceCors(request: Request) {
   }
 
   if (STATIC_ALLOWED.includes(normalizedOrigin)) return null;
-
-  try {
-    const { hostname, protocol } = new URL(origin);
-    if (protocol === "https:" && hostname.endsWith(".vercel.app")) return null;
-  } catch {
-    // Malformed Origin header — fall through to reject below.
-  }
 
   console.warn(`[cors] Rejected request from origin "${origin}" (request host: "${host || "unknown"}").`);
 

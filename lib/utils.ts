@@ -34,3 +34,9 @@ export function generateTicketNumber() {
   const time = Date.now().toString(36).slice(-4).toUpperCase();
   return `UNX-${time}-${rand}`;
 }
+
+/** Only allow same-site relative paths as post-login redirects (blocks open-redirect tricks like //evil.com or /\evil.com). */
+export function safeRedirect(target: string | null | undefined, fallback = "/dashboard") {
+  if (!target || !target.startsWith("/") || target.startsWith("//") || target.includes("\\")) return fallback;
+  return target;
+}
