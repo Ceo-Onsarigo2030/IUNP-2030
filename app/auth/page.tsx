@@ -7,6 +7,7 @@ import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { MEMBER_CATEGORIES, type MemberCategory } from "@/lib/constants";
 import { cn, safeRedirect } from "@/lib/utils";
+import { isValidEmail, suggestEmailFix } from "@/lib/email";
 import { Turnstile, TURNSTILE_SITE_KEY } from "@/components/turnstile";
 import { Loader2, Mail, Lock, User, Building2, Accessibility, CheckCircle2, AlertCircle } from "lucide-react";
 
@@ -81,6 +82,12 @@ function AuthPageContent() {
       return;
     }
 
+    const email = signupForm.email.trim();
+    if (!isValidEmail(email)) {
+      const fix = suggestEmailFix(email);
+      setError(fix ? `That email looks incomplete — did you mean ${fix}?` : "Please enter a complete email address, like name@gmail.com.");
+      return;
+    }
     if (!agree) {
       setError("Please accept the Terms of Use and Privacy Policy to continue.");
       return;

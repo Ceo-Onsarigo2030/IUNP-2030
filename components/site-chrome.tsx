@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { MarqueeBanner } from "@/components/marquee-banner";
+import { PushPrompt } from "@/components/push-opt-in";
 
 /**
  * The public SiteHeader is `sticky top-0 z-50`. AdminLayout renders its own
@@ -42,5 +43,10 @@ export function SiteChrome({ slot }: { slot: "header" | "footer" }) {
     );
   }
 
-  return <SiteFooter />;
+  return (
+    <>
+      <SiteFooter />
+      <PushPrompt />
+    </>
+  );
 }

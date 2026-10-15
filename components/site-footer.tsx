@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PushOptIn } from "@/components/push-opt-in";
 import Image from "next/image";
 import { Facebook, Instagram, Mail, Linkedin } from "lucide-react";
 import { SOCIALS, SLOGAN, NAV } from "@/lib/constants";
@@ -37,6 +38,7 @@ export function SiteFooter() {
             <li><Link href="/programs" className="hover:text-gold transition-colors">Programs &amp; Events</Link></li>
             <li><Link href="/auth" className="hover:text-gold transition-colors">Join the Platform</Link></li>
             <li><Link href="/privacy" className="hover:text-gold transition-colors">Privacy Policy</Link></li>
+            <li><PushOptIn /></li>
             <li><Link href="/terms" className="hover:text-gold transition-colors">Terms of Use</Link></li>
           </ul>
         </div>
