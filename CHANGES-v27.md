@@ -25,3 +25,14 @@
 ## Deploy order
 1. Push code → Vercel deploys. 2. Add Turnstile keys, redeploy, then enable CAPTCHA in Supabase (README Step 12).
 3. Admin sets up two-step (Step 13). 4. Run migration 0012. 5. Add the missing Vercel variables: `AFRICASTALKING_USERNAME`, `AFRICASTALKING_API_KEY`, `AFRICASTALKING_SENDER_ID`, `OTP_HASH_SECRET`.
+
+---
+
+# v28 additions
+- **Email campaigns fixed.** Root cause: one malformed address among the saved emails (`name@gmail`, `name@gmail.c`) made Resend reject the whole batch, stopping every send. Now: invalid addresses are skipped, any address Resend still rejects is isolated automatically, and each person gets their own personalised email (`{{first_name}}`) instead of a BCC list.
+- **Invitations:** invitation template (fill from an event or blank), live preview, "Send test to me", resumable sending with progress, unsubscribe footer + header.
+- **Push notifications fixed.** Root cause: the opt-in button existed but was never shown anywhere, so 0 devices were subscribed. Now there is a pop-up prompt on the public site, a footer link, clearer errors, and the admin page shows how many devices will receive a message.
+- **Institutions on Board de-duplicated** (migration 0013): spacing/case/punctuation/"The"/"Co-operative" variants and common typos merge. 222 → 188.
+- Sign-up rejects incomplete emails and suggests fixes (`@gmail` → `@gmail.com`).
+- Push subscriptions now link to the signed-in member from the session, not from request data.
+- Optional env var: `RESEND_REPLY_TO` (where replies to campaigns go).

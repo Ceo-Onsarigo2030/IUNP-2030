@@ -69,18 +69,33 @@ export async function sendNewsletterWelcomeEmail({ to }: { to: string }) {
   });
 }
 
-export async function sendCampaignEmail({ to, subject, html }: { to: string[]; subject: string; html: string }) {
-  // Resend batches recipients internally when BCC'd this way; for large lists, chunk into batches of ~50.
-  const chunks: string[][] = [];
-  for (let i = 0; i < to.length; i += 50) chunks.push(to.slice(i, i + 50));
-
-  for (const chunk of chunks) {
-    await sendOrThrow({
-      from: process.env.RESEND_FROM_EMAIL || "UniNexus Connect <news@uninexusconnectplatform.co.ke>",
-      to: process.env.RESEND_FROM_EMAIL || "news@uninexusconnectplatform.co.ke",
-      bcc: chunk,
-      subject,
-      html,
-    });
+/** Carries Resend's error name (e.g. "validation_error", "daily_quota_exceeded") so callers can react to it. */
+export class ResendError extends Error {
+  constructor(message: string, public code: string) {
+    super(message);
+    this.name = "ResendError";
   }
+}
+
+export type CampaignMessage = { to: string; subject: string; html: string };
+
+/**
+ * Sends up to 100 individual emails in ONE Resend API call (each recipient gets their own
+ * message — no BCC list, so addresses aren't exposed and each can be personalised).
+ * Throws ResendError if Resend rejects the batch.
+ */
+export async function sendCampaignBatch(messages: CampaignMessage[]) {
+  const from = process.env.RESEND_FROM_EMAIL || "UniNexus Connect <news@uninexusconnectplatform.co.ke>";
+  const replyTo = process.env.RESEND_REPLY_TO || undefined;
+  const { error } = await getResendClient().batch.send(
+    messages.map((m) => ({
+      from,
+      to: m.to,
+      subject: m.subject,
+      html: m.html,
+      replyTo,
+      headers: { "List-Unsubscribe": "<mailto:uninexusplatformke@gmail.com?subject=unsubscribe>" },
+    }))
+  );
+  if (error) throw new ResendError(error.message, (error as any).name || "unknown");
 }
