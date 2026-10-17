@@ -85,7 +85,7 @@ export default function AdminArticlesPage() {
                   {a.is_pinned && <Star className="size-3.5 text-gold fill-gold" />}
                   <h3 className="font-display text-lg">{a.title}</h3>
                 </div>
-                <p className="text-xs text-ink/50">{a.published_at ? "Published" : "Draft"} · Comments {a.comments_enabled ? "on" : "off"} · {a.like_count || 0} likes</p>
+                <p className="text-xs text-ink/50">{a.published_at ? "Published" : "Draft"} · Comments {a.comments_enabled ? "on" : "off"}</p>
               </div>
               <div className="flex flex-col gap-2 shrink-0">
                 <button onClick={() => togglePublish(a)} className="text-xs px-3 py-1.5 rounded-full border border-black/10 hover:bg-black/5 flex items-center gap-1">

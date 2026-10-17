@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { CommentSection } from "@/components/comment-section";
 import { ArticleMediaGallery } from "@/components/article-media-gallery";
-import { ArticleLikeButton } from "@/components/article-like-button";
 
 async function getArticle(slug: string) {
   const supabase = createClient();
@@ -52,10 +51,6 @@ export default async function ArticleDetailPage({ params }: { params: { slug: st
       </section>
 
       <article className="container py-14 sm:py-20 max-w-3xl">
-        <div className="mb-8">
-          <ArticleLikeButton articleId={article.id} initialLikeCount={article.like_count || 0} />
-        </div>
-
         <div className="prose-content text-ink/75 leading-relaxed text-[15px] sm:text-base space-y-5 whitespace-pre-line">
           {article.body}
         </div>

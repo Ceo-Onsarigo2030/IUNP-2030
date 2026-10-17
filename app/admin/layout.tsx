@@ -4,12 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  LayoutDashboard, CalendarDays, Newspaper, MessageSquare, Mail, BellRing, Users, Settings, Trophy, Menu, X, Landmark, ShieldCheck,
+  LayoutDashboard, CalendarDays, Newspaper, MessageSquare, Mail, BellRing, Users, Settings, Trophy, Menu, X, Landmark, ShieldCheck, ScanLine,
 } from "lucide-react";
 
 const LINKS = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/events", label: "Events & Ticketing", icon: CalendarDays },
+  { href: "/admin/checkin", label: "Gate Check-in", icon: ScanLine },
   { href: "/admin/gala", label: "Gala Awards", icon: Trophy },
   { href: "/admin/articles", label: "Articles & Announcements", icon: Newspaper },
   { href: "/admin/feedback", label: "Feedback Wall", icon: MessageSquare },

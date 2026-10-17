@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Loader2, Smartphone, CheckCircle2, XCircle, Ticket, ChevronLeft } from "lucide-react";
+import { Turnstile, TURNSTILE_SITE_KEY } from "@/components/turnstile";
 
 type Tier = { id: string; name: string; price: number; currency: string; description: string | null };
 type Phase = "tier" | "form" | "prompting" | "success" | "failed";
@@ -11,6 +12,8 @@ export function TicketWidget({ eventId, tiers }: { eventId: string; tiers: Tier[
   const [tier, setTier] = useState<Tier | null>(tiers.length === 1 ? tiers[0] : null);
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [error, setError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
 
   function chooseTier(t: Tier) {
     setTier(t);
@@ -22,13 +25,17 @@ export function TicketWidget({ eventId, tiers }: { eventId: string; tiers: Tier[
     e.preventDefault();
     if (!tier) return;
     setError(null);
+    if (TURNSTILE_SITE_KEY && !captchaToken) {
+      setError("Please complete the security check first.");
+      return;
+    }
     setPhase("prompting");
 
     try {
       const res = await fetch("/api/daraja/stk-push", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId, tierId: tier.id, ...form }),
+        body: JSON.stringify({ eventId, tierId: tier.id, ...form, captchaToken }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not start payment prompt.");
@@ -53,6 +60,10 @@ export function TicketWidget({ eventId, tiers }: { eventId: string; tiers: Tier[
     } catch (err: any) {
       setError(err.message || "Something went wrong. Please try again.");
       setPhase("failed");
+    } finally {
+      // Security-check tokens are single-use.
+      setCaptchaToken(null);
+      setCaptchaReset((n) => n + 1);
     }
   }
 
@@ -127,7 +138,7 @@ export function TicketWidget({ eventId, tiers }: { eventId: string; tiers: Tier[
       </div>
       <p className="font-display text-2xl mb-5">{tier?.currency} {tier?.price.toLocaleString()}</p>
 
-      {phase === "failed" && error && (
+      {error && (
         <div className="mb-4 flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
           <XCircle className="size-4 mt-0.5 shrink-0" /> {error}
         </div>
@@ -159,6 +170,7 @@ export function TicketWidget({ eventId, tiers }: { eventId: string; tiers: Tier[
             className="w-full rounded-lg border border-black/10 pl-10 pr-4 py-3 text-sm focus:border-gold outline-none"
           />
         </div>
+        <Turnstile onToken={setCaptchaToken} resetSignal={captchaReset} />
         <button type="submit" className="btn-gold w-full !py-3.5">
           Pay {tier?.currency} {tier?.price.toLocaleString()} with M-Pesa
         </button>

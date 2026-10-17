@@ -1,98 +1,53 @@
 import { NextResponse } from "next/server";
-import { createServiceRoleClient } from "@/lib/supabase/server";
-import { generateGatePassPdf } from "@/lib/gate-pass";
-import { sendGatePassEmail } from "@/lib/resend";
-import { generateTicketNumber } from "@/lib/utils";
+import { queryStkPush } from "@/lib/daraja";
+import { issueTicket, failTicket } from "@/lib/tickets";
+import { safeEqual } from "@/lib/ticket-security";
 import * as Sentry from "@sentry/nextjs";
 
 export async function POST(request: Request) {
   const url = new URL(request.url);
-  if (url.searchParams.get("key") !== process.env.DARAJA_CALLBACK_SECRET) {
-    // Wrong or missing secret — don't reveal why, just reject.
+  // Shared secret in the callback URL, compared in constant time. Wrong or missing -> reject quietly.
+  if (!safeEqual(url.searchParams.get("key"), process.env.DARAJA_CALLBACK_SECRET)) {
     return NextResponse.json({ ResultCode: 1, ResultDesc: "Rejected" }, { status: 401 });
   }
 
-  const payload = await request.json();
+  let payload: any;
+  try {
+    payload = await request.json();
+  } catch {
+    return NextResponse.json({ ResultCode: 0, ResultDesc: "Ignored" });
+  }
   const stkCallback = payload?.Body?.stkCallback;
-  if (!stkCallback) return NextResponse.json({ ResultCode: 0, ResultDesc: "Ignored" });
+  if (!stkCallback?.CheckoutRequestID) return NextResponse.json({ ResultCode: 0, ResultDesc: "Ignored" });
 
-  const checkoutRequestId = stkCallback.CheckoutRequestID;
-  const resultCode = stkCallback.ResultCode;
-  const supabase = createServiceRoleClient();
+  const checkoutRequestId = String(stkCallback.CheckoutRequestID);
 
-  if (resultCode !== 0) {
-    // Same atomic-claim pattern as below — only a still-pending ticket gets moved to
-    // "failed", so a duplicate failure callback is a harmless no-op the second time.
-    await supabase.from("tickets").update({ status: "failed" }).eq("checkout_request_id", checkoutRequestId).eq("status", "pending");
+  if (stkCallback.ResultCode !== 0) {
+    await failTicket(checkoutRequestId);
     return NextResponse.json({ ResultCode: 0, ResultDesc: "Marked failed" });
   }
 
-  const metadata: any[] = stkCallback.CallbackMetadata?.Item || [];
-  const receipt = metadata.find((i) => i.Name === "MpesaReceiptNumber")?.Value || null;
-  const paidAmount = metadata.find((i) => i.Name === "Amount")?.Value;
-  const ticketNumber = generateTicketNumber();
-
-  // Safaricom is documented to occasionally redeliver the same callback. The previous
-  // version did a SELECT (checking status = 'pending') and then a separate UPDATE —
-  // two near-simultaneous redelivered callbacks could both pass that SELECT before
-  // either UPDATE landed, and both would then send a gate pass email and double-count
-  // stats for one payment. Folding the pending-check into the UPDATE itself makes the
-  // claim atomic: Postgres only lets one concurrent request's WHERE status='pending'
-  // actually match and return a row — a second, redelivered callback for the same
-  // ticket updates zero rows and is safely ignored below.
-  // The amount Safaricom reports as paid must equal the ticket price — otherwise the ticket
-  // stays pending (and is flagged in Sentry) instead of being issued for a short payment.
-  let claimQuery = supabase
-    .from("tickets")
-    .update({ status: "paid", mpesa_receipt: receipt, ticket_number: ticketNumber })
-    .eq("checkout_request_id", checkoutRequestId)
-    .eq("status", "pending");
-  if (paidAmount != null) claimQuery = claimQuery.eq("amount", Number(paidAmount));
-
-  const { data: claimed } = await claimQuery
-    .select("*, events(*), event_ticket_tiers(name)")
-    .maybeSingle();
-
-  if (!claimed) {
-    if (paidAmount != null) {
-      const { data: pending } = await supabase
-        .from("tickets")
-        .select("id, amount")
-        .eq("checkout_request_id", checkoutRequestId)
-        .eq("status", "pending")
-        .maybeSingle();
-      if (pending) {
-        Sentry.captureMessage(`M-Pesa amount mismatch: paid ${paidAmount}, expected ${pending.amount} (ticket ${pending.id})`, "error");
-      }
-    }
-    return NextResponse.json({ ResultCode: 0, ResultDesc: "No matching pending ticket" });
+  // Never trust the callback body alone: ask Safaricom directly. If Safaricom says this payment
+  // did NOT succeed, the callback is bogus — ignore it. (If Safaricom can't be reached we still
+  // proceed, since the secret URL + exact-amount check already guard this path, and a real
+  // payment must not be lost because of a network blip.)
+  const verified = await queryStkPush(checkoutRequestId);
+  if (verified.resultCode !== null && verified.resultCode !== "0") {
+    Sentry.captureMessage(`Callback claimed success but Safaricom reports ${verified.resultCode} for ${checkoutRequestId}`, "warning");
+    return NextResponse.json({ ResultCode: 0, ResultDesc: "Not confirmed" });
   }
-  const ticket = claimed;
+
+  const items: any[] = stkCallback.CallbackMetadata?.Item || [];
+  const receipt = items.find((i) => i.Name === "MpesaReceiptNumber")?.Value ?? null;
+  const paidAmount = items.find((i) => i.Name === "Amount")?.Value ?? null;
 
   try {
-    const tierName = (ticket as any).event_ticket_tiers?.name;
-    const pdfBytes = await generateGatePassPdf({
-      eventTitle: tierName ? `${ticket.events.title} — ${tierName}` : ticket.events.title,
-      venue: ticket.events.venue,
-      startsAt: ticket.events.starts_at,
-      buyerName: ticket.buyer_name,
-      ticketNumber,
-    });
-
-    await sendGatePassEmail({
-      to: ticket.buyer_email,
-      buyerName: ticket.buyer_name,
-      eventTitle: tierName ? `${ticket.events.title} (${tierName})` : ticket.events.title,
-      ticketNumber,
-      pdfBytes,
-    });
-
-    await supabase.from("tickets").update({ gate_pass_sent_at: new Date().toISOString() }).eq("id", ticket.id);
+    await issueTicket(checkoutRequestId, { receipt, paidAmount: paidAmount != null ? Number(paidAmount) : null });
   } catch (err) {
-    // Payment already succeeded — log for admin follow-up (bulk resend covers this) rather than failing the callback.
     Sentry.captureException(err);
-    console.error("Gate pass email failed for ticket", ticket.id, err);
+    console.error("[daraja callback] issueTicket failed", checkoutRequestId, err);
   }
 
+  // Always acknowledge so Safaricom doesn't keep retrying; recovery runs from the status check / daily sweep.
   return NextResponse.json({ ResultCode: 0, ResultDesc: "Processed" });
 }
