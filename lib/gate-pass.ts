@@ -1,4 +1,5 @@
 import QRCode from "qrcode";
+import { signedQrPayload } from "@/lib/ticket-security";
 import { PDFDocument, rgb, StandardFonts, type PDFFont } from "pdf-lib";
 import { readFileSync } from "fs";
 import path from "path";
@@ -31,7 +32,7 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
 export async function generateGatePassPdf({
   eventTitle, venue, startsAt, buyerName, ticketNumber,
 }: { eventTitle: string; venue: string; startsAt: string; buyerName: string; ticketNumber: string }) {
-  const qrDataUrl = await QRCode.toDataURL(ticketNumber, { margin: 1, width: 500, color: { dark: "#0A0A0B", light: "#FAF7EF" } });
+  const qrDataUrl = await QRCode.toDataURL(signedQrPayload(ticketNumber), { margin: 1, width: 500, color: { dark: "#0A0A0B", light: "#FAF7EF" } });
   const qrBytes = Buffer.from(qrDataUrl.split(",")[1], "base64");
 
   const pdf = await PDFDocument.create();

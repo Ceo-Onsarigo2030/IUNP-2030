@@ -16,7 +16,14 @@ function makeLimiter(requests: number, window: `${number} ${"s" | "m" | "h"}`) {
 }
 
 // Payment initiation — tightest limit, protects Daraja quota + prevents prompt-spamming a phone number.
-export const stkPushLimiter = makeLimiter(5, "10 m");
+export const stkPushLimiter = makeLimiter(5, "10 m"); // per phone number
+// Per IP: generous on purpose — campus / venue Wi-Fi puts many genuine buyers behind ONE address.
+export const stkPushIpLimiter = makeLimiter(40, "10 m");
+// Payment-status polling (buyers poll every few seconds) and the Safaricom re-check it can trigger.
+export const ticketStatusIpLimiter = makeLimiter(300, "10 m");
+export const ticketStatusQueryLimiter = makeLimiter(1, "15 s");
+// Gate check-in scans (admin only).
+export const checkinLimiter = makeLimiter(120, "1 m");
 // Public form submissions — feedback, newsletter, comments.
 export const publicFormLimiter = makeLimiter(10, "10 m");
 // Push subscription registration.
@@ -30,8 +37,6 @@ export const otpRequestPhoneLimiter = makeLimiter(3, "15 m");
 export const otpRequestIpLimiter = makeLimiter(10, "15 m");
 // OTP verify — a few genuine mistypes allowed, but not enough for brute-forcing a 6-digit code.
 export const otpVerifyLimiter = makeLimiter(8, "15 m");
-// Article like/unlike toggling — generous, it's a low-stakes action, just blunt scripted spam.
-export const articleLikeLimiter = makeLimiter(60, "10 m");
 
 export function clientIp(request: Request) {
   const fwd = request.headers.get("x-forwarded-for");

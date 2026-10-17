@@ -36,3 +36,15 @@
 - Sign-up rejects incomplete emails and suggests fixes (`@gmail` → `@gmail.com`).
 - Push subscriptions now link to the signed-in member from the session, not from request data.
 - Optional env var: `RESEND_REPLY_TO` (where replies to campaigns go).
+
+---
+
+# v29 — ticketing safeguards, likes removed
+- **Seat reservation is atomic** (migration 0014): the database locks the ticket type while it counts, so any number of simultaneous buyers can never oversell a capacity-limited ticket. Also enforces: event open, ticket type active, ONE live M-Pesa prompt per phone, per-phone ticket cap (default 10, `TICKET_MAX_PER_PHONE`). Set a **capacity** on each ticket type in Admin → Events & Ticketing for the limit to apply.
+- **Price comes from the database**, never the browser. Bot check (Turnstile) on the buy form. Per-IP limit is generous (shared campus / venue Wi-Fi); per-phone limit stays tight.
+- **Callbacks are verified with Safaricom** before a ticket is issued (a forged callback can't mint tickets), the paid amount must equal the price, and one M-Pesa receipt can only back one ticket.
+- **Lost callbacks no longer lose payments**: the status check and a daily sweep ask Safaricom directly, issue the ticket if it was paid, release the seat if not, and retry gate-pass emails that failed.
+- **Gate passes are tamper-proof**: ticket numbers use a cryptographic RNG; each QR carries a signature. New **Admin → Gate Check-in** page scans the QR with the phone camera (Chrome/Android), a handheld scanner, or typing — each ticket is admitted ONCE; copies/screenshots of a used pass are refused.
+- Admin ticket actions (bulk resend, check-in) now require two-step verification. Bulk resend capped at 40 per click.
+- **Article likes removed** (button, API and counts). Existing like data is kept in the database, unused.
+- `has_role()` no longer callable from the public API.

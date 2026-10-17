@@ -29,6 +29,7 @@ export function buildMapEmbedUrl(venue: string) {
   return `https://www.google.com/maps?q=${encodeURIComponent(venue)}&output=embed`;
 }
 
+/** @deprecated predictable (Math.random). Use secureTicketNumber() from lib/ticket-security.ts on the server. */
 export function generateTicketNumber() {
   const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
   const time = Date.now().toString(36).slice(-4).toUpperCase();

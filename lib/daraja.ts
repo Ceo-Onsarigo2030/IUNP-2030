@@ -169,3 +169,37 @@ export async function initiateStkPush({
   }
   return { checkoutRequestId: data.CheckoutRequestID as string, merchantRequestId: data.MerchantRequestID as string };
 }
+
+/**
+ * Asks Safaricom directly whether an STK push was paid. Used (a) to double-check a callback
+ * before a ticket is issued — so a forged callback can't mint tickets — and (b) to recover
+ * payments whose callback never arrived (common under heavy load).
+ * Returns the Daraja ResultCode as a string ("0" = paid), or null if Safaricom couldn't be reached
+ * or the payment is still being processed.
+ */
+export async function queryStkPush(checkoutRequestId: string): Promise<{ resultCode: string | null; description?: string }> {
+  try {
+    const token = await getDarajaToken();
+    const shortcode = requiredEnvAny(["MPESA_SHORTCODE", "DARAJA_SHORTCODE"]);
+    const passkey = requiredEnvAny(["MPESA_PASSKEY", "DARAJA_PASSKEY"]);
+    const ts = timestamp();
+    const res = await fetch(`${BASE_URL()}/mpesa/stkpushquery/v1/query`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        BusinessShortCode: shortcode,
+        Password: Buffer.from(`${shortcode}${passkey}${ts}`).toString("base64"),
+        Timestamp: ts,
+        CheckoutRequestID: checkoutRequestId,
+      }),
+      cache: "no-store",
+    });
+    const data = await res.json().catch(() => ({}));
+    // While the customer is still entering their PIN Safaricom answers with an errorCode (e.g. "500.001.1001") and no ResultCode.
+    if (data?.ResultCode === undefined || data?.ResultCode === null) return { resultCode: null, description: data?.errorMessage };
+    return { resultCode: String(data.ResultCode), description: data.ResultDesc };
+  } catch (err) {
+    Sentry.captureException(err);
+    return { resultCode: null };
+  }
+}
