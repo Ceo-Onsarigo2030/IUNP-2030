@@ -180,7 +180,8 @@ export default function AdminEventsPage() {
 
 function TiersPanel({ event, onClose }: { event: any; onClose: () => void }) {
   const [tiers, setTiers] = useState<any[]>([]);
-  const [form, setForm] = useState({ name: "", price: "", description: "" });
+  const [form, setForm] = useState({ name: "", price: "", description: "", capacity: "" });
+  const [stats, setStats] = useState<Record<string, { sold: number; inside: number }>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -189,6 +190,17 @@ function TiersPanel({ event, onClose }: { event: any; onClose: () => void }) {
     const supabase = createClient();
     const { data } = await supabase.from("event_ticket_tiers").select("*").eq("event_id", event.id).order("sort_order", { ascending: true });
     setTiers(data || []);
+
+    // Sold (paid) and checked-in counts per ticket type, so you can see capacity filling up live.
+    const next: Record<string, { sold: number; inside: number }> = {};
+    await Promise.all((data || []).map(async (t: any) => {
+      const [{ count: sold }, { count: inside }] = await Promise.all([
+        supabase.from("tickets").select("id", { count: "exact", head: true }).eq("tier_id", t.id).eq("status", "paid"),
+        supabase.from("tickets").select("id", { count: "exact", head: true }).eq("tier_id", t.id).not("checked_in_at", "is", null),
+      ]);
+      next[t.id] = { sold: sold ?? 0, inside: inside ?? 0 };
+    }));
+    setStats(next);
   }
   useEffect(() => { load(); }, [event.id]);
 
@@ -197,7 +209,13 @@ function TiersPanel({ event, onClose }: { event: any; onClose: () => void }) {
     setSaving(true);
     setError(null);
     const supabase = createClient();
-    const payload = { name: form.name, price: Number(form.price), description: form.description || null };
+    const payload = {
+      name: form.name,
+      price: Number(form.price),
+      description: form.description || null,
+      // Empty = unlimited. A number = the most tickets of this type that can ever be sold.
+      capacity: form.capacity.trim() ? Math.max(0, Math.floor(Number(form.capacity))) : null,
+    };
 
     const { error: err } = editingId
       ? await supabase.from("event_ticket_tiers").update(payload).eq("id", editingId)
@@ -205,7 +223,7 @@ function TiersPanel({ event, onClose }: { event: any; onClose: () => void }) {
 
     if (err) setError(err.message);
     else {
-      setForm({ name: "", price: "", description: "" });
+      setForm({ name: "", price: "", description: "", capacity: "" });
       setEditingId(null);
     }
     setSaving(false);
@@ -213,13 +231,13 @@ function TiersPanel({ event, onClose }: { event: any; onClose: () => void }) {
   }
 
   function startEdit(t: any) {
-    setForm({ name: t.name, price: String(t.price), description: t.description || "" });
+    setForm({ name: t.name, price: String(t.price), description: t.description || "", capacity: t.capacity != null ? String(t.capacity) : "" });
     setEditingId(t.id);
     setError(null);
   }
 
   function cancelEdit() {
-    setForm({ name: "", price: "", description: "" });
+    setForm({ name: "", price: "", description: "", capacity: "" });
     setEditingId(null);
     setError(null);
   }
@@ -275,6 +293,9 @@ function TiersPanel({ event, onClose }: { event: any; onClose: () => void }) {
             <input required type="number" placeholder="Price (KES)" value={form.price}
               onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
               className="w-full rounded-lg border border-black/10 px-3 py-2 text-sm" />
+            <input type="number" min={0} placeholder="Capacity — max tickets of this type (leave empty = unlimited)" value={form.capacity}
+              onChange={(e) => setForm((f) => ({ ...f, capacity: e.target.value }))}
+              className="w-full rounded-lg border border-black/10 px-3 py-2 text-sm" />
             <input placeholder="What's included (optional)" value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
               className="w-full rounded-lg border border-black/10 px-3 py-2 text-sm" />
@@ -297,6 +318,13 @@ function TiersPanel({ event, onClose }: { event: any; onClose: () => void }) {
                     {!t.is_active && <span className="ml-2 text-[10px] uppercase tracking-wider text-ink/40">Archived</span>}
                   </p>
                   {t.description && <p className="text-xs text-ink/50">{t.description}</p>}
+                  <p className="text-xs mt-0.5">
+                    <span className={t.capacity != null && (stats[t.id]?.sold ?? 0) >= t.capacity ? "text-red-600 font-semibold" : "text-ink/60"}>
+                      Sold {stats[t.id]?.sold ?? "…"} / {t.capacity != null ? t.capacity : "unlimited"}
+                      {t.capacity != null && (stats[t.id]?.sold ?? 0) >= t.capacity ? " — SOLD OUT" : ""}
+                    </span>
+                    <span className="text-ink/40"> · Checked in {stats[t.id]?.inside ?? "…"}</span>
+                  </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <button onClick={() => startEdit(t)} className="text-xs text-ink/50 hover:text-ink">Edit</button>
