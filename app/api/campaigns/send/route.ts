@@ -30,6 +30,23 @@ async function fetchAll(service: ReturnType<typeof createServiceRoleClient>, tab
   return out;
 }
 
+// Who has already been handled for a campaign (email -> "sent" | "skipped"). Paged: PostgREST caps reads at 1000 rows.
+async function loadDeliveries(service: ReturnType<typeof createServiceRoleClient>, campaignId: string) {
+  const map = new Map<string, string>();
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await service
+      .from("email_campaign_deliveries")
+      .select("email, status")
+      .eq("campaign_id", campaignId)
+      .order("email", { ascending: true })
+      .range(from, from + 999);
+    if (error) throw error;
+    (data || []).forEach((r: any) => map.set(String(r.email), String(r.status)));
+    if (!data || data.length < 1000) break;
+  }
+  return map;
+}
+
 const FRIENDLY: Record<string, string> = {
   daily_quota_exceeded: "Your Resend plan's DAILY sending limit has been reached. Sending resumes automatically from the same point tomorrow (press Continue sending), or upgrade the Resend plan.",
   monthly_quota_exceeded: "Your Resend plan's MONTHLY sending limit has been reached. Upgrade the Resend plan to keep sending.",
@@ -118,42 +135,68 @@ export async function POST(request: Request) {
 
   if (recipients.length === 0) return NextResponse.json({ error: "No members with a valid email address to send to." }, { status: 400 });
 
+  // ---- Work out who still needs this campaign. Every delivery is recorded per person, so a campaign
+  //      can be paused/resumed any number of times and nobody is ever emailed twice. People who join
+  //      later are picked up automatically by the next "Continue sending". ----
+  let delivered: Map<string, string>;
+  try {
+    delivered = await loadDeliveries(service, campaignId);
+    if (campaign.audience_from_campaign) {
+      // A correction/follow-up: only the people who actually received the original campaign.
+      const original = await loadDeliveries(service, campaign.audience_from_campaign);
+      const allowed = new Set(Array.from(original.entries()).filter(([, st]) => st === "sent").map(([e]) => e));
+      recipients = recipients.filter((r) => allowed.has(r.email));
+    }
+  } catch (err: any) {
+    Sentry.captureException(err);
+    return NextResponse.json({ error: `Couldn't load delivery records: ${err?.message || "unknown error"}` }, { status: 500 });
+  }
+
+  const todo = recipients.filter((r) => !delivered.has(r.email));
   const started = Date.now();
-  let cursor = Math.min(campaign.sent_count || 0, recipients.length);
-  let skipped = campaign.skipped_count || 0;
   const rejectedNow: string[] = [];
+  let processed = 0;
 
   try {
-    while (cursor < recipients.length && Date.now() - started < TIME_BUDGET_MS) {
-      const chunk = recipients.slice(cursor, cursor + BATCH);
+    while (processed < todo.length && Date.now() - started < TIME_BUDGET_MS) {
+      const chunk = todo.slice(processed, processed + BATCH);
       const before = rejectedNow.length;
       await sendIsolating(chunk.map(build), rejectedNow);
-      skipped += rejectedNow.length - before;
-      cursor += chunk.length;
-      await service.from("email_campaigns").update({ sent_count: cursor, skipped_count: skipped, status: "sending" }).eq("id", campaignId);
-      if (cursor < recipients.length) await new Promise((r) => setTimeout(r, PAUSE_MS));
+      const rejectedSet = new Set(rejectedNow.slice(before));
+      // Record exactly who was handled, BEFORE moving on, so a crash can never cause a double send.
+      await service.from("email_campaign_deliveries").upsert(
+        chunk.map((r) => ({ campaign_id: campaignId, email: r.email, status: rejectedSet.has(r.email) ? "skipped" : "sent" })),
+        { onConflict: "campaign_id,email", ignoreDuplicates: true }
+      );
+      chunk.forEach((r) => delivered.set(r.email, rejectedSet.has(r.email) ? "skipped" : "sent"));
+      processed += chunk.length;
+      const skipped = Array.from(delivered.values()).filter((v) => v === "skipped").length;
+      await service.from("email_campaigns").update({ sent_count: delivered.size, skipped_count: skipped, status: "sending" }).eq("id", campaignId);
+      if (processed < todo.length) await new Promise((r) => setTimeout(r, PAUSE_MS));
     }
   } catch (err: any) {
     Sentry.captureException(err);
     console.error("[campaigns] send failed:", err?.code, err?.message || err);
     const reason = FRIENDLY[err?.code] || `${err?.message || "unknown error"}${err?.code === "validation_error" ? "" : " — a common cause is a sending domain that isn't verified in Resend."}`;
     return NextResponse.json(
-      { error: `Sending paused after ${cursor} of ${recipients.length}. ${reason} Press Continue sending to resume from the same point — nobody gets a duplicate.`, sent: cursor, total: recipients.length },
+      { error: `Sending paused after ${delivered.size} of ${recipients.length}. ${reason} Press Continue sending to resume from the same point — nobody gets a duplicate.`, sent: delivered.size, total: recipients.length },
       { status: 502 }
     );
   }
 
-  const done = cursor >= recipients.length;
+  const remaining = todo.length - processed;
+  const done = remaining <= 0;
+  const skippedTotal = Array.from(delivered.values()).filter((v) => v === "skipped").length;
   await service
     .from("email_campaigns")
-    .update(done ? { status: "sent", sent_at: new Date().toISOString(), sent_count: cursor, skipped_count: skipped } : { status: "sending", sent_count: cursor, skipped_count: skipped })
+    .update(done ? { status: "sent", sent_at: new Date().toISOString(), sent_count: delivered.size, skipped_count: skippedTotal } : { status: "sending", sent_count: delivered.size, skipped_count: skippedTotal })
     .eq("id", campaignId);
 
   return NextResponse.json({
-    sent: cursor - skipped,
+    sent: delivered.size - skippedTotal,
     total: recipients.length,
     done,
-    remaining: recipients.length - cursor,
+    remaining,
     skippedInvalid: invalidCount,
     rejected: rejectedNow.slice(0, 20),
   });

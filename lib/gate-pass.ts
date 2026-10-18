@@ -1,5 +1,6 @@
 import QRCode from "qrcode";
 import { signedQrPayload } from "@/lib/ticket-security";
+import { formatEventWhen } from "@/lib/email-templates";
 import { PDFDocument, rgb, StandardFonts, type PDFFont } from "pdf-lib";
 import { readFileSync } from "fs";
 import path from "path";
@@ -120,7 +121,7 @@ export async function generateGatePassPdf({
   }
   y -= 2;
 
-  page.drawText(new Date(startsAt).toLocaleString("en-KE", { dateStyle: "full", timeStyle: "short" }), {
+  page.drawText(formatEventWhen(startsAt) + " EAT", {
     x: MARGIN, y, size: 10, font: regular, color: CREAM_DIM,
   });
   y -= 40;

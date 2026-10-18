@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { nairobiLocalToIso, isoToNairobiLocal, formatNairobi } from "@/lib/event-time";
 import { Loader2, Plus, Star, Ticket as TicketIcon, Trash2, Download, Send, X, Link2, ImagePlus } from "lucide-react";
 
 const EMPTY = {
@@ -30,6 +31,8 @@ export default function AdminEventsPage() {
     const supabase = createClient();
     const payload = {
       ...form,
+      // The time typed in the form is KENYA time (EAT). Store it with its offset so it can never drift by 3 hours.
+      starts_at: nairobiLocalToIso(form.starts_at),
       slug: form.slug || form.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
       ticket_price: form.ticket_price ? Number(form.ticket_price) : null,
       capacity: form.capacity ? Number(form.capacity) : null,
@@ -120,6 +123,7 @@ export default function AdminEventsPage() {
           ) : (
             <p className="text-[11px] text-ink/40">Save this event first, then click Edit on it to add a logo/cover image.</p>
           )}
+          <label className="block text-xs text-ink/50 -mb-1">Start date &amp; time — Kenya time (EAT). For 6:00 PM choose 18:00.</label>
           <input required type="datetime-local" value={form.starts_at} onChange={(e) => setForm((f: any) => ({ ...f, starts_at: e.target.value }))} className="w-full rounded-lg border border-black/10 px-3 py-2.5 text-sm" />
           <div className="grid grid-cols-2 gap-3">
             <input placeholder="Ticket price (KES)" type="number" value={form.ticket_price} onChange={(e) => setForm((f: any) => ({ ...f, ticket_price: e.target.value }))} className="w-full rounded-lg border border-black/10 px-3 py-2.5 text-sm" />
@@ -149,7 +153,7 @@ export default function AdminEventsPage() {
                   {e.status === "current" && <Star className="size-3.5 text-gold fill-gold" />}
                   <h3 className="font-display text-lg">{e.title}</h3>
                 </div>
-                <p className="text-xs text-ink/50 mb-1">{e.venue} · {new Date(e.starts_at).toLocaleString()}</p>
+                <p className="text-xs text-ink/50 mb-1">{e.venue} · {formatNairobi(e.starts_at)} (Kenya time)</p>
                 <p className="text-xs uppercase tracking-wider text-gold-deep">{e.status} · {e.tickets?.[0]?.count ?? 0} tickets</p>
                 </div>
               </div>
@@ -164,7 +168,7 @@ export default function AdminEventsPage() {
                   Ticket Tiers
                 </button>
                 <button onClick={() => setPinnedCurrent(e.id)} className="text-xs px-3 py-1.5 rounded-full border border-gold/30 text-gold-deep hover:bg-gold/10">Pin current</button>
-                <button onClick={() => { setForm({ ...e, ticket_price: e.ticket_price || "", capacity: e.capacity || "" }); setEditingId(e.id); }} className="text-xs px-3 py-1.5 rounded-full border border-black/10 hover:bg-black/5">Edit</button>
+                <button onClick={() => { setForm({ ...e, starts_at: isoToNairobiLocal(e.starts_at), ticket_price: e.ticket_price || "", capacity: e.capacity || "" }); setEditingId(e.id); }} className="text-xs px-3 py-1.5 rounded-full border border-black/10 hover:bg-black/5">Edit</button>
                 <button onClick={() => remove(e.id)} className="text-xs px-3 py-1.5 rounded-full border border-red-200 text-red-600 hover:bg-red-50 flex items-center gap-1"><Trash2 className="size-3" /> Delete</button>
               </div>
             </div>

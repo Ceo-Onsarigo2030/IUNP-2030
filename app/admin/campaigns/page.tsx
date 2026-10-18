@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Loader2, Send, Trash2, MailCheck, CalendarPlus } from "lucide-react";
-import { buildInvitationHtml } from "@/lib/email-templates";
+import { buildInvitationHtml, formatEventWhen } from "@/lib/email-templates";
 import { personalize } from "@/lib/email";
 
 const SITE = typeof window !== "undefined" ? window.location.origin : "";
@@ -15,6 +15,7 @@ export default function AdminCampaignsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<{ id: string; message: string; ok: boolean } | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [dinner, setDinner] = useState("");
 
   async function load() {
     const supabase = createClient();
@@ -30,17 +31,17 @@ export default function AdminCampaignsPage() {
   function applyEventTemplate(eventId: string) {
     const ev = events.find((x) => x.id === eventId);
     if (!ev) return;
-    const dateText = new Date(ev.starts_at).toLocaleString("en-KE", { dateStyle: "full", timeStyle: "short", timeZone: "Africa/Nairobi" });
+    const dateText = formatEventWhen(ev.starts_at); // always Kenya time, e.g. "… · 6:00 PM (18:00)"
     setForm({
       subject: `You're invited: ${ev.title}`,
-      body_html: buildInvitationHtml({ title: ev.title, dateText, venue: ev.venue, link: `${SITE}/programs/${ev.slug}` }),
+      body_html: buildInvitationHtml({ title: ev.title, dateText, venue: ev.venue, link: `${SITE}/programs/${ev.slug}`, dinnerText: dinner.trim() || undefined }),
     });
   }
 
   function applyBlankInvitation() {
     setForm({
       subject: "You're invited to UniNexus Connect",
-      body_html: buildInvitationHtml({ title: "Event name", dateText: "Date and time", venue: "Venue", link: `${SITE}/programs` }),
+      body_html: buildInvitationHtml({ title: "Event name", dateText: "Date and time", venue: "Venue", link: `${SITE}/programs`, dinnerText: dinner.trim() || undefined }),
     });
   }
 
@@ -104,6 +105,7 @@ export default function AdminCampaignsPage() {
 
             <div className="rounded-lg bg-gold/10 border border-gold/30 p-3 space-y-2">
               <p className="text-xs font-semibold text-ink/70 flex items-center gap-1.5"><CalendarPlus className="size-3.5" /> Invitation template</p>
+              <input value={dinner} onChange={(e) => setDinner(e.target.value)} placeholder="Extra line, e.g. Dinner will be served at 8:00 PM (optional)" className="w-full rounded-lg border border-black/10 px-2.5 py-2 text-sm bg-white" />
               <div className="flex flex-wrap gap-2">
                 <select defaultValue="" onChange={(e) => { if (e.target.value) applyEventTemplate(e.target.value); e.target.value = ""; }} className="flex-1 min-w-[10rem] rounded-lg border border-black/10 px-2.5 py-2 text-sm bg-white">
                   <option value="">Fill from an event…</option>
