@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Loader2, Send, Trash2, MailCheck, CalendarPlus } from "lucide-react";
+import { Loader2, Send, Trash2, MailCheck, CalendarPlus, HeartPulse, AlertTriangle } from "lucide-react";
+import { CampaignMedia } from "@/components/campaign-media";
 import { buildInvitationHtml, formatEventWhen } from "@/lib/email-templates";
 import { personalize } from "@/lib/email";
 
@@ -16,6 +17,7 @@ export default function AdminCampaignsPage() {
   const [result, setResult] = useState<{ id: string; message: string; ok: boolean } | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [dinner, setDinner] = useState("");
+  const [audience, setAudience] = useState<{ members: number; subscribers: number } | null>(null);
 
   async function load() {
     const supabase = createClient();
@@ -25,6 +27,11 @@ export default function AdminCampaignsPage() {
     ]);
     setCampaigns(c || []);
     setEvents(e || []);
+    const [{ count: members }, { count: subscribers }] = await Promise.all([
+      supabase.from("profiles").select("id", { count: "exact", head: true }),
+      supabase.from("newsletter_subscribers").select("id", { count: "exact", head: true }).eq("is_active", true),
+    ]);
+    setAudience({ members: members ?? 0, subscribers: subscribers ?? 0 });
   }
   useEffect(() => { load(); }, []);
 
@@ -42,6 +49,20 @@ export default function AdminCampaignsPage() {
     setForm({
       subject: "You're invited to UniNexus Connect",
       body_html: buildInvitationHtml({ title: "Event name", dateText: "Date and time", venue: "Venue", link: `${SITE}/programs`, dinnerText: dinner.trim() || undefined }),
+    });
+  }
+
+  // Drops a download button / image into the email — before the final "Reserve your spot" row when the
+  // invitation template is in use, otherwise at the end.
+  function insertHtml(snippet: string) {
+    setForm((f) => {
+      const marker = '<tr><td style="padding:26px 32px 38px;">';
+      const i = f.body_html.indexOf(marker);
+      if (i !== -1) {
+        const row = `<tr><td style="padding:0 32px;color:#d9d5c8;">${snippet}</td></tr>\n    `;
+        return { ...f, body_html: f.body_html.slice(0, i) + row + f.body_html.slice(i) };
+      }
+      return { ...f, body_html: `${f.body_html}\n${snippet}` };
     });
   }
 
@@ -98,6 +119,25 @@ export default function AdminCampaignsPage() {
       <p className="text-sm text-ink/55 mb-8 max-w-2xl">
         Sent individually to every member and active newsletter subscriber. Use <code className="font-mono text-xs bg-black/5 px-1 rounded">{"{{first_name}}"}</code> in the subject or body to greet each person by name.
       </p>
+      {(() => {
+        const sending = campaigns.filter((c) => c.status === "sending").length;
+        const problem = campaigns.find((c) => c.last_error && c.status !== "sent");
+        const quota = problem && /quota|limit/i.test(problem.last_error);
+        return (
+          <div className={`mb-6 rounded-xl border p-4 text-sm flex items-start gap-3 ${problem ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200"}`}>
+            {problem ? <AlertTriangle className="size-5 text-amber-600 shrink-0 mt-0.5" /> : <HeartPulse className="size-5 text-emerald-600 shrink-0 mt-0.5" />}
+            <div className="min-w-0 space-y-1">
+              <p className="font-medium">{problem ? "Email sending needs attention" : "Email sending looks healthy"}</p>
+              <p className="text-ink/65 text-xs">
+                Audience: {audience ? `${audience.members.toLocaleString()} members + ${audience.subscribers.toLocaleString()} newsletter subscribers` : "…"} · {sending} campaign{sending === 1 ? "" : "s"} in progress · {campaigns.filter((c) => c.status === "sent").length} fully sent
+              </p>
+              {problem && <p className="text-xs text-amber-800 break-words">Last problem: {problem.last_error}</p>}
+              {quota && <p className="text-xs text-amber-800">Your Resend plan&apos;s sending limit was reached. Upgrade the plan in Resend (or wait until the limit resets) and press <b>Continue sending</b> — it picks up exactly where it stopped, with no repeats.</p>}
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="grid xl:grid-cols-[1fr_1.2fr] gap-8">
         <div className="space-y-4">
           <form onSubmit={saveDraft} className="card-elegant p-6 space-y-3 h-fit">
@@ -120,6 +160,8 @@ export default function AdminCampaignsPage() {
             {saveError && <p className="text-sm text-red-600">{saveError}</p>}
             <button type="submit" className="btn-gold w-full !py-3">Save draft</button>
           </form>
+
+          <CampaignMedia onInsert={insertHtml} />
 
           {form.body_html && (
             <div className="card-elegant p-4">
@@ -146,6 +188,8 @@ export default function AdminCampaignsPage() {
                         ? `In progress — ${(c.sent_count || 0).toLocaleString()} processed so far`
                         : "Draft"}
                     </p>
+                    {c.last_run_at && <p className="text-[11px] text-ink/40 mt-0.5">Last activity {new Date(c.last_run_at).toLocaleString("en-KE", { timeZone: "Africa/Nairobi" })} (Kenya time)</p>}
+                    {c.last_error && c.status !== "sent" && <p className="text-[11px] text-amber-700 mt-0.5 break-words">⚠ {c.last_error}</p>}
                   </div>
                   <div className="flex flex-col gap-2 shrink-0">
                     <button onClick={() => call(c.id, true)} disabled={!!busy} className="text-xs px-3 py-1.5 rounded-full border border-black/15 hover:bg-black/[0.03] flex items-center gap-1 disabled:opacity-60">

@@ -135,6 +135,8 @@ export async function POST(request: Request) {
 
   if (recipients.length === 0) return NextResponse.json({ error: "No members with a valid email address to send to." }, { status: 400 });
 
+  await service.from("email_campaigns").update({ last_run_at: new Date().toISOString() }).eq("id", campaignId);
+
   // ---- Work out who still needs this campaign. Every delivery is recorded per person, so a campaign
   //      can be paused/resumed any number of times and nobody is ever emailed twice. People who join
   //      later are picked up automatically by the next "Continue sending". ----
@@ -178,6 +180,7 @@ export async function POST(request: Request) {
     Sentry.captureException(err);
     console.error("[campaigns] send failed:", err?.code, err?.message || err);
     const reason = FRIENDLY[err?.code] || `${err?.message || "unknown error"}${err?.code === "validation_error" ? "" : " — a common cause is a sending domain that isn't verified in Resend."}`;
+    await service.from("email_campaigns").update({ last_error: String(reason).slice(0, 300), last_run_at: new Date().toISOString() }).eq("id", campaignId);
     return NextResponse.json(
       { error: `Sending paused after ${delivered.size} of ${recipients.length}. ${reason} Press Continue sending to resume from the same point — nobody gets a duplicate.`, sent: delivered.size, total: recipients.length },
       { status: 502 }
@@ -189,7 +192,7 @@ export async function POST(request: Request) {
   const skippedTotal = Array.from(delivered.values()).filter((v) => v === "skipped").length;
   await service
     .from("email_campaigns")
-    .update(done ? { status: "sent", sent_at: new Date().toISOString(), sent_count: delivered.size, skipped_count: skippedTotal } : { status: "sending", sent_count: delivered.size, skipped_count: skippedTotal })
+    .update(done ? { status: "sent", sent_at: new Date().toISOString(), sent_count: delivered.size, skipped_count: skippedTotal, last_error: null } : { status: "sending", sent_count: delivered.size, skipped_count: skippedTotal, last_error: null })
     .eq("id", campaignId);
 
   return NextResponse.json({

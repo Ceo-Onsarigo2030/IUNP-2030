@@ -25,13 +25,13 @@ export async function GET(request: Request) {
   // ask Safaricom directly (at most once per 15s per payment) so a real payment is never missed.
   const ageMs = Date.now() - new Date(data.created_at).getTime();
   if (ageMs > 20_000 && !(await enforceRateLimit(ticketStatusQueryLimiter, `tquery:${checkoutRequestId}`))) {
-    const { resultCode } = await queryStkPush(checkoutRequestId);
+    const { resultCode, description } = await queryStkPush(checkoutRequestId);
     if (resultCode === "0") {
       await issueTicket(checkoutRequestId, {});
       return NextResponse.json({ status: "paid" });
     }
     if (resultCode && FAILED_CODES.has(resultCode)) {
-      await failTicket(checkoutRequestId);
+      await failTicket(checkoutRequestId, description);
       return NextResponse.json({ status: "failed" });
     }
   }

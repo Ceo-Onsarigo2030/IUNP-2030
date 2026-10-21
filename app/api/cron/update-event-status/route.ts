@@ -55,12 +55,12 @@ export async function GET(request: Request) {
     .limit(25);
   for (const row of stale || []) {
     if (!row.checkout_request_id) continue;
-    const { resultCode } = await queryStkPush(row.checkout_request_id);
+    const { resultCode, description } = await queryStkPush(row.checkout_request_id);
     if (resultCode === "0") { await issueTicket(row.checkout_request_id, {}); recovered++; }
-    else { await failTicket(row.checkout_request_id); released++; }
+    else { await failTicket(row.checkout_request_id, description || "No payment received (timed out)"); released++; }
   }
   // Pending rows that never even got a Safaricom id (the prompt failed to send).
-  await supabase.from("tickets").update({ status: "failed" }).eq("status", "pending").is("checkout_request_id", null).lt("created_at", cutoff);
+  await supabase.from("tickets").update({ status: "failed", failure_reason: "M-Pesa prompt could not be sent" }).eq("status", "pending").is("checkout_request_id", null).lt("created_at", cutoff);
 
   // 2) Paid tickets whose gate-pass email didn't go out — retry (a few per run keeps this fast).
   let redelivered = 0;

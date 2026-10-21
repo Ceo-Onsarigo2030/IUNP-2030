@@ -95,7 +95,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ checkoutRequestId });
   } catch (err: any) {
     // If the prompt couldn't be sent, release the held seat straight away.
-    if (ticketId) await supabase.from("tickets").update({ status: "failed" }).eq("id", ticketId).eq("status", "pending");
+    if (ticketId) await supabase.from("tickets").update({ status: "failed", failure_reason: "M-Pesa prompt could not be sent" }).eq("id", ticketId).eq("status", "pending");
 
     if (err?.name === "ZodError") {
       return NextResponse.json({ error: "Please check your name, email and phone number and try again." }, { status: 400 });

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  LayoutDashboard, CalendarDays, Newspaper, MessageSquare, Mail, BellRing, Users, Settings, Trophy, Menu, X, Landmark, ShieldCheck, ScanLine,
+  LayoutDashboard, CalendarDays, Newspaper, MessageSquare, Mail, BellRing, Users, Settings, Trophy, Menu, X, Landmark, ShieldCheck, ScanLine, HeartPulse,
 } from "lucide-react";
 
 const LINKS = [
@@ -20,6 +20,7 @@ const LINKS = [
   { href: "/admin/members", label: "Members", icon: Users },
   { href: "/admin/institutions", label: "Institution Mapping", icon: Landmark },
   { href: "/admin/settings", label: "Site Settings", icon: Settings },
+  { href: "/admin/health", label: "System Health", icon: HeartPulse },
   { href: "/admin/security", label: "Security & 2-Step", icon: ShieldCheck },
 ];
 

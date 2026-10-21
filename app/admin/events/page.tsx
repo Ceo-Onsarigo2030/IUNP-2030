@@ -350,6 +350,8 @@ function TiersPanel({ event, onClose }: { event: any; onClose: () => void }) {
 function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
   const [tickets, setTickets] = useState<any[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selectedFailed, setSelectedFailed] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
   const [resending, setResending] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   // Default view is successful payments only — that's what admins need day to day
@@ -368,6 +370,10 @@ function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
 
   const visibleTickets = view === "successful" ? tickets.filter((t) => t.status === "paid") : tickets;
   const paidCount = tickets.filter((t) => t.status === "paid").length;
+  const failedRows = tickets.filter((t) => t.status === "failed");
+  // A failed row that carries an M-Pesa receipt means money moved — never offered for deletion.
+  const deletableFailed = failedRows.filter((t) => !t.mpesa_receipt);
+  const failedCount = failedRows.length;
 
   function toggle(id: string) {
     setSelected((s) => {
@@ -375,6 +381,40 @@ function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  }
+
+  function toggleFailed(id: string) {
+    setSelectedFailed((s) => {
+      const next = new Set(s);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllFailed() {
+    const ids = deletableFailed.map((t) => t.id);
+    setSelectedFailed(selectedFailed.size === ids.length ? new Set() : new Set(ids));
+  }
+
+  async function deleteSelectedFailed() {
+    if (selectedFailed.size === 0) return;
+    if (!confirm(`Permanently delete ${selectedFailed.size} failed attempt(s)? They never produced a ticket or took any money.`)) return;
+    setDeleting(true);
+    setResult(null);
+    const res = await fetch("/api/tickets/delete-failed", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticketIds: Array.from(selectedFailed) }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setTickets((all) => all.filter((t) => !(selectedFailed.has(t.id) && t.status === "failed" && !t.mpesa_receipt)));
+      setSelectedFailed(new Set());
+      setResult(`Deleted ${data.deleted} failed attempt(s).${data.needsReview ? ` ${data.needsReview} kept — they have an M-Pesa receipt and need a manual check.` : ""}`);
+    } else {
+      setResult(data.error || "Couldn't delete — please try again.");
+    }
+    setDeleting(false);
   }
 
   function toggleAll() {
@@ -426,7 +466,7 @@ function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
         <div className="flex items-center justify-between p-5 border-b border-black/5">
           <div>
             <h2 className="font-display text-xl">{event.title} — Tickets sold</h2>
-            <p className="text-xs text-ink/50">{tickets.length} total attempts · {paidCount} successful payments</p>
+            <p className="text-xs text-ink/50">{tickets.length} total attempts · {paidCount} successful payments · {failedCount} failed</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-black/5 rounded-full"><X className="size-4" /></button>
         </div>
@@ -446,6 +486,16 @@ function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
           <button onClick={bulkResend} disabled={resending || selected.size === 0} className="text-xs px-3 py-1.5 rounded-full bg-gold-foil text-ink shadow-gold flex items-center gap-1 disabled:opacity-50">
             {resending ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />} Resend gate pass ({selected.size})
           </button>
+          {view === "all" && failedCount > 0 && (
+            <>
+              <button onClick={toggleAllFailed} className="text-xs px-3 py-1.5 rounded-full border border-red-200 text-red-600 hover:bg-red-50">
+                {selectedFailed.size > 0 ? "Deselect failed" : `Select all failed (${deletableFailed.length})`}
+              </button>
+              <button onClick={deleteSelectedFailed} disabled={deleting || selectedFailed.size === 0} className="text-xs px-3 py-1.5 rounded-full bg-red-600 text-white flex items-center gap-1 disabled:opacity-40">
+                {deleting ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />} Delete selected ({selectedFailed.size})
+              </button>
+            </>
+          )}
           <button onClick={exportCsv} className="text-xs px-3 py-1.5 rounded-full border border-black/10 hover:bg-black/5 flex items-center gap-1 ml-auto">
             <Download className="size-3" /> Export CSV
           </button>
@@ -474,6 +524,9 @@ function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
                     {t.status === "paid" && (
                       <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggle(t.id)} className="accent-[#C9A227]" />
                     )}
+                    {t.status === "failed" && !t.mpesa_receipt && (
+                      <input type="checkbox" checked={selectedFailed.has(t.id)} onChange={() => toggleFailed(t.id)} className="accent-red-600" aria-label="Select failed attempt" />
+                    )}
                   </td>
                   <td className="px-4 py-2 font-mono text-xs">{t.ticket_number || "—"}</td>
                   <td className="px-4 py-2">{t.buyer_name}<br /><span className="text-xs text-ink/45">{t.buyer_email}</span></td>
@@ -494,6 +547,8 @@ function TicketsPanel({ event, onClose }: { event: any; onClose: () => void }) {
                       <span className={`text-xs px-2 py-1 rounded-full ${
                         t.status === "paid" ? "bg-emerald-50 text-emerald-700" : t.status === "failed" ? "bg-red-50 text-red-600" : "bg-black/5 text-ink/50"
                       }`}>{t.status}</span>
+                      {t.status === "failed" && t.failure_reason && <p className="text-[11px] text-ink/45 mt-1 max-w-[12rem]">{t.failure_reason}</p>}
+                      {t.status === "failed" && t.mpesa_receipt && <p className="text-[11px] text-amber-700 mt-1">Has a receipt — check manually</p>}
                     </td>
                   )}
                 </tr>

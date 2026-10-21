@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   const checkoutRequestId = String(stkCallback.CheckoutRequestID);
 
   if (stkCallback.ResultCode !== 0) {
-    await failTicket(checkoutRequestId);
+    await failTicket(checkoutRequestId, stkCallback.ResultDesc);
     return NextResponse.json({ ResultCode: 0, ResultDesc: "Marked failed" });
   }
 
