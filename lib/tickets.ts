@@ -92,7 +92,11 @@ export async function deliverGatePass(ticket: any) {
   }
 }
 
-export async function failTicket(checkoutRequestId: string) {
+export async function failTicket(checkoutRequestId: string, reason?: string | null) {
   const supabase = createServiceRoleClient();
-  await supabase.from("tickets").update({ status: "failed" }).eq("checkout_request_id", checkoutRequestId).eq("status", "pending");
+  await supabase
+    .from("tickets")
+    .update({ status: "failed", failure_reason: reason ? String(reason).slice(0, 200) : null })
+    .eq("checkout_request_id", checkoutRequestId)
+    .eq("status", "pending");
 }
